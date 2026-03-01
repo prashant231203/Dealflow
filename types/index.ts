@@ -19,6 +19,7 @@ export type DealAction =
   | 'flag'
   | 'update_constraints'
   | 'system_expired'
+  | 'created'
 
 export type OfferStatus = 'pending' | 'accepted' | 'rejected' | 'withdrawn' | 'expired'
 

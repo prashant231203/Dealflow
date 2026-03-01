@@ -1,8 +1,27 @@
+import { authenticateRequest } from '../../../../../../lib/auth/middleware.js'
 import { generateDealSummary } from '../../../../../../lib/intelligence/summary.js'
-import type { DealData, DealEvent, DealOffer } from '../../../../../../types/index.js'
-import { ok } from '../../../../../../lib/utils/response.js'
+import { memoryStore } from '../../../../../../lib/store/in-memory.js'
+import { errorResponse, invalidApiKeyResponse, json } from '../../../../../../lib/utils/http.js'
 
-export async function getDealSummary(deal: DealData, offers: DealOffer[], events: DealEvent[]) {
-  const summary = await generateDealSummary(deal, offers, events)
-  return ok({ summary })
+export async function GET(
+  request: Request,
+  context: { params: { dealId: string } },
+): Promise<Response> {
+  const auth = await authenticateRequest(request)
+  if (!auth) return invalidApiKeyResponse()
+
+  const deal = memoryStore.deals.find(
+    (item) => item.id === context.params.dealId && item.developer_id === auth.developer.id,
+  )
+  if (!deal) return errorResponse('Deal not found', 'DEAL_NOT_FOUND', 404)
+
+  const offers = memoryStore.offers.filter((item) => item.deal_id === deal.id && item.status === 'pending')
+  const events = memoryStore.events
+    .filter((item) => item.deal_id === deal.id)
+    .sort((a, b) => b.sequence_number - a.sequence_number)
+    .slice(0, 10)
+    .reverse()
+
+  const summary = await generateDealSummary(deal, events, offers)
+  return json({ summary })
 }

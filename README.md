@@ -5,16 +5,22 @@ Dealflow is a developer SDK + hosted API that gives AI commerce agents persisten
 This repository now includes:
 
 - Shared type system (`types/index.ts`) used by API-domain and SDK code
-- SDK foundations in both `packages/sdk` and publishable `packages/@dealflow/sdk`
-- Core deal domain logic in `lib/deals` and intelligence helpers in `lib/intelligence`
-- API key generation/hashing helpers in `lib/auth/api-keys.ts`
+- Auth-first API route handlers under `app/api/v1/deals/**` with Bearer key verification middleware
+- Groq-backed summary generation in `lib/intelligence/summary.ts` (with deterministic fallback)
+- Rule-based compliance and best-offer logic in `lib/intelligence/compliance.ts` and `lib/intelligence/offers.ts`
 - API response/error helpers with consistent `{ error, code, status }` shape
-- Route-layer functions under `app/api/v1/deals/**`
 - Supabase SQL migrations for schema, RLS policies, and performance indexes
+
+## Environment
+
+```bash
+GROQ_API_KEY=your_groq_api_key_here
+```
 
 ## Commands
 
 ```bash
 npm run typecheck
 npm test
+npm run test:http
 ```

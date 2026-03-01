@@ -1,19 +1,32 @@
+import { memoryStore } from '../store/in-memory.js'
 import type { DealConstraints, DealOffer, DealType } from '../../types/index.js'
 
-function isOfferValid(offer: DealOffer, constraints: DealConstraints): boolean {
-  if (constraints.budget_max && offer.price > constraints.budget_max) return false
-  if (constraints.budget_min && offer.price < constraints.budget_min) return false
+export function computeBestOffer(
+  dealId: string,
+  constraints: DealConstraints,
+  dealType: DealType,
+): DealOffer | null {
+  try {
+    const pendingOffers = memoryStore.offers.filter((offer) => offer.deal_id === dealId && offer.status === 'pending')
+    if (pendingOffers.length === 0) return null
 
-  const required = constraints.requirements ?? []
-  const present = [...(offer.conditions ?? []), ...(offer.includes ?? [])]
-  return required.every((item) => present.includes(item))
-}
+    const filtered = pendingOffers.filter((offer) => {
+      if (constraints.budget_max !== undefined && offer.price > constraints.budget_max) return false
+      if (constraints.budget_min !== undefined && offer.price < constraints.budget_min) return false
+      return true
+    })
 
-export function computeBestOffer(offers: DealOffer[], constraints: DealConstraints, dealType: DealType): DealOffer | null {
-  const pending = offers.filter((offer) => offer.status === 'pending').filter((offer) => isOfferValid(offer, constraints))
+    if (filtered.length === 0) return null
 
-  if (pending.length === 0) return null
+    const sorted = [...filtered].sort((a, b) => {
+      if (dealType === 'sales') return b.price - a.price
+      if (dealType === 'return') return new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+      return a.price - b.price
+    })
 
-  const sorted = pending.sort((a, b) => (dealType === 'sales' ? b.price - a.price : a.price - b.price))
-  return sorted[0] ?? null
+    return sorted[0] ?? null
+  } catch (error) {
+    console.error('Failed to compute best offer:', error)
+    return null
+  }
 }

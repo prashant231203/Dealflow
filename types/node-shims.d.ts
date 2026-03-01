@@ -10,3 +10,24 @@ declare module 'node:crypto' {
     digest(encoding: 'hex'): string
   }
 }
+
+declare const process: {
+  env: Record<string, string | undefined>
+}
+
+declare module 'groq-sdk' {
+  export default class Groq {
+    constructor(config: { apiKey: string })
+    chat: {
+      completions: {
+        create(input: Record<string, unknown>): Promise<{
+          choices: Array<{
+            message?: {
+              content?: string
+            }
+          }>
+        }>
+      }
+    }
+  }
+}
