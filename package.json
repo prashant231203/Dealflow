@@ -1,0 +1,12 @@
+{
+  "name": "dealflow",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc --noEmit",
+    "test": "npm run build && node tests/domain-check.mjs",
+    "test:http": "npm run build && node scripts/http-e2e.mjs"
+  }
+}
