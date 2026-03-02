@@ -1,6 +1,6 @@
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
-import { WebhooksMgmtClient } from './WebhooksMgmtClient'
+import { WebhooksMgmtClient } from '@/app/(dashboard)/webhooks/WebhooksMgmtClient'
 
 export const dynamic = 'force-dynamic'
 

@@ -4,10 +4,12 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
     "typecheck": "tsc --noEmit",
-    "test": "npm run build && node tests/domain-check.mjs",
-    "test:http": "npm run build && node scripts/http-e2e.mjs"
+    "test": "tsc -p tsconfig.json && node tests/domain-check.mjs",
+    "test:http": "tsc -p tsconfig.json && node scripts/http-e2e.mjs"
   },
   "devDependencies": {
     "autoprefixer": "^10.4.27",
