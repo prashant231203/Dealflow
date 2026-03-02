@@ -19,9 +19,58 @@ export type DealAction =
   | 'flag'
   | 'update_constraints'
   | 'system_expired'
+  | 'system_offer_expired'
   | 'created'
 
 export type OfferStatus = 'pending' | 'accepted' | 'rejected' | 'withdrawn' | 'expired'
+
+export interface DealflowConfig {
+  apiKey: string
+  baseUrl?: string
+}
+
+// ---------------------------------------------------------------------------
+// Backend Database Records (Not part of SDK, used internally)
+// ---------------------------------------------------------------------------
+
+export interface WebhookRecord {
+  id: string
+  developer_id: string
+  url: string
+  events: string[]
+  secret: string
+  is_active: boolean
+  description?: string
+  created_at: string
+  last_triggered_at?: string
+}
+
+export interface WebhookDeliveryRecord {
+  id: string
+  webhook_id: string
+  deal_id?: string
+  event: string
+  payload: Record<string, unknown>
+  attempt_number: number
+  response_status?: number
+  response_body?: string
+  duration_ms?: number
+  succeeded?: boolean
+  error_message?: string
+  created_at: string
+  delivered_at?: string
+}
+
+export interface WebhookRetryQueueRecord {
+  id: string
+  webhook_id: string
+  deal_id?: string
+  payload: Record<string, unknown>
+  event: string
+  next_attempt_number: number
+  retry_after: string
+  created_at: string
+}
 
 export interface DealParty {
   id: string
@@ -76,14 +125,14 @@ export interface DealEvent {
 
 export interface ComplianceFlag {
   type:
-    | 'price_floor_violated'
-    | 'over_budget'
-    | 'deadline_missed'
-    | 'unauthorized_action'
-    | 'policy_violation'
-    | 'missing_requirements'
-    | 'expired_deal'
-    | 'custom'
+  | 'price_floor_violated'
+  | 'over_budget'
+  | 'deadline_missed'
+  | 'unauthorized_action'
+  | 'policy_violation'
+  | 'missing_requirements'
+  | 'expired_deal'
+  | 'custom'
   message: string
   severity: 'warning' | 'critical'
   action_id?: string

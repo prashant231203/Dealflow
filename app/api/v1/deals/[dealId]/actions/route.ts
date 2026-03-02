@@ -7,6 +7,7 @@ import { memoryStore } from '../../../../../../lib/store/in-memory.js'
 import { errorResponse, handleRouteError, invalidApiKeyResponse, json, parseJson } from '../../../../../../lib/utils/http.js'
 import type { ActOnDealRequest, OfferPayload } from '../../../../../../types/index.js'
 import { actOnDeal } from './service.js'
+import { fireWebhooks, mapActionToEvents } from '../../../../../../lib/webhooks/delivery.js'
 
 export async function POST(
   request: Request,
@@ -65,6 +66,12 @@ export async function POST(
     memoryStore.events.push(event)
     acted.deal.history = [...(memoryStore.events.filter((item) => item.deal_id === deal.id))]
     memoryStore.deals[dealIndex] = acted.deal
+
+    // Fire webhooks asynchronously — do not await
+    const eventsToFire = mapActionToEvents(body.action, acted.deal, complianceFlags)
+    if (eventsToFire.length > 0) {
+      fireWebhooks(auth.developer.id, deal.id, eventsToFire[0], acted.deal, eventsToFire.slice(1))
+    }
 
     // Step 4: return updated deal
     return json({ deal: acted.deal })

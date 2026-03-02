@@ -1,0 +1,16 @@
+{
+    "crons": [
+        {
+            "path": "/api/cron/expire-deals",
+            "schedule": "*/5 * * * *"
+        },
+        {
+            "path": "/api/cron/expire-offers",
+            "schedule": "*/2 * * * *"
+        },
+        {
+            "path": "/api/cron/retry-webhooks",
+            "schedule": "* * * * *"
+        }
+    ]
+}

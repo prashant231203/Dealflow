@@ -4,6 +4,7 @@ import { generateDealSummary } from '../../../../lib/intelligence/summary.js'
 import { errorResponse, handleRouteError, invalidApiKeyResponse, json, parseJson } from '../../../../lib/utils/http.js'
 import { memoryStore } from '../../../../lib/store/in-memory.js'
 import type { CreateDealRequest, DealFilters } from '../../../../types/index.js'
+import { fireWebhooks } from '../../../../lib/webhooks/delivery.js'
 
 function parseFilters(url: URL): DealFilters {
   return {
@@ -27,6 +28,10 @@ export async function POST(request: Request): Promise<Response> {
     const initialSummary = await generateDealSummary(created.deal, [], [], 'created', auth.developer.id)
     created.deal.current_summary = initialSummary
     memoryStore.deals.push(created.deal)
+
+    // Fire webhooks asynchronously — do not await
+    fireWebhooks(auth.developer.id, created.deal.id, 'deal.created', created.deal, ['deal.active'])
+
     return json(created, 201)
   } catch (error) {
     return handleRouteError(error)

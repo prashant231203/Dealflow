@@ -1,0 +1,122 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Base */
+    --bg-void: 6 6 8;
+    --bg-surface: 13 13 20;
+    --bg-elevated: 19 19 31;
+    --bg-overlay: 26 26 46;
+
+    /* Borders */
+    --border-dim: 28 28 46;
+    --border-default: 37 37 56;
+    --border-bright: 53 53 85;
+
+    /* Brand */
+    --electric: 77 255 180;
+    --electric-dim: 77 255 180 0.08; /* fallback */
+
+    /* Semantic */
+    --positive: 77 255 180;
+    --warning: 255 179 71;
+    --danger: 255 77 109;
+    --info: 77 159 255;
+
+    /* Text */
+    --text-primary: 232 232 240;
+    --text-secondary: 120 120 160;
+    --text-muted: 61 61 92;
+    --text-data: 200 200 255;
+
+    /* Status */
+    --status-active: #4DFFB4;
+    --status-paused: #FFB347;
+    --status-escalated: #4D9FFF;
+    --status-closed: #3D3D5C;
+    --status-expired: #FF4D6D;
+    --status-cancelled: #FF4D6D;
+
+    --radius: 0.5rem;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    background-color: rgb(var(--bg-void));
+    color: rgb(var(--text-primary));
+    background-image: 
+      radial-gradient(ellipse 80% 50% at 20% -10%, rgba(13, 31, 51, 0.15) 0%, transparent 60%),
+      radial-gradient(ellipse 60% 40% at 80% 110%, rgba(26, 13, 46, 0.15) 0%, transparent 60%);
+    background-attachment: fixed;
+    min-height: 100vh;
+  }
+
+  /* Noise Overlay */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+    opacity: 0.025;
+    pointer-events: none;
+    z-index: 9999;
+  }
+
+  /* Interactive base states */
+  * {
+    transition-property: color, background-color, border-color, text-decoration-color, fill, stroke, opacity, box-shadow, transform, filter, backdrop-filter;
+    transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+    transition-duration: 150ms;
+  }
+
+  :focus-visible {
+    outline: 2px solid rgb(var(--electric));
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+
+  /* Selection glow */
+  ::selection {
+    background-color: rgba(var(--electric), 0.2);
+    color: rgb(var(--text-primary));
+  }
+
+  /* Custom scrollbar for deep dark ui */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: rgb(var(--bg-elevated));
+    border-radius: 3px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: rgb(var(--border-default));
+  }
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+  .loading-shimmer {
+    background: linear-gradient(90deg, transparent 25%, rgba(var(--electric), 0.05) 50%, transparent 75%);
+    background-size: 400px 100%;
+    animation: shimmer 1.5s infinite;
+  }
+  .skeleton-shimmer {
+    background: linear-gradient(90deg, rgb(var(--border-dim)) 25%, rgb(var(--border-default)) 50%, rgb(var(--border-dim)) 75%);
+    background-size: 400px 100%;
+    animation: shimmer 1.5s infinite;
+  }
+}

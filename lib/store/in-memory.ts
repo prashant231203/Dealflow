@@ -1,5 +1,12 @@
 import { generateApiKey } from '../auth/api-keys.js'
-import type { DealData, DealEvent, DealOffer } from '../../types/index.js'
+import type {
+  DealData,
+  DealEvent,
+  DealOffer,
+  WebhookRecord,
+  WebhookDeliveryRecord,
+  WebhookRetryQueueRecord
+} from '../../types/index.js'
 
 export interface DeveloperRecord {
   id: string
@@ -27,12 +34,18 @@ export const memoryStore: {
   deals: DealData[]
   offers: DealOffer[]
   events: DealEvent[]
+  webhooks: WebhookRecord[]
+  webhook_deliveries: WebhookDeliveryRecord[]
+  webhook_retry_queue: WebhookRetryQueueRecord[]
 } = {
   developers: [],
   apiKeys: [],
   deals: [],
   offers: [],
   events: [],
+  webhooks: [],
+  webhook_deliveries: [],
+  webhook_retry_queue: [],
 }
 
 let seededApiKey: string | null = null

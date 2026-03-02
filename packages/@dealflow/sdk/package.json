@@ -1,13 +1,47 @@
 {
   "name": "@dealflow/sdk",
   "version": "0.1.0",
+  "description": "The commerce intelligence layer for AI agents",
   "type": "module",
-  "main": "dist/index.js",
+  "main": "dist/index.cjs",
+  "module": "dist/index.js",
   "types": "dist/index.d.ts",
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
-      "default": "./dist/index.js"
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
     }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "typecheck": "tsc --noEmit",
+    "test": "node --experimental-vm-modules src/__tests__/integration.test.mjs"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/prashant231203/Dealflow.git",
+    "directory": "packages/@dealflow/sdk"
+  },
+  "keywords": [
+    "commerce",
+    "agents",
+    "ai",
+    "sdk",
+    "negotiation",
+    "dealflow",
+    "deals"
+  ],
+  "license": "MIT",
+  "devDependencies": {
+    "tsup": "^8.0.0",
+    "typescript": "^5.0.0"
   }
 }
