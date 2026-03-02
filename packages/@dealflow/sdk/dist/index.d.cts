@@ -107,6 +107,18 @@ interface DealListResponse {
     page: number;
     per_page: number;
 }
+interface DealDashboardTotals {
+    deals: number;
+    active_deals: number;
+    paused_deals: number;
+    escalated_deals: number;
+    closed_deals: number;
+    critical_flags: number;
+}
+interface DealDashboardResponse {
+    totals: DealDashboardTotals;
+    recent_deals: DealData[];
+}
 interface ActOnDealRequest {
     action: DealAction;
     actor: string;
@@ -286,14 +298,6 @@ declare class Deal {
     toJSON(): DealData;
 }
 
-/**
- * The main entry point for the Dealflow SDK.
- *
- * ```ts
- * const df = new Dealflow({ apiKey: 'df_live_...' })
- * const deal = await df.deals.create({ type: 'negotiation', intent: 'Buy 100 units' })
- * ```
- */
 declare class Dealflow {
     private readonly apiKey;
     private readonly baseUrl;
@@ -304,9 +308,13 @@ declare class Dealflow {
         resume: (dealId: string) => Promise<Deal>;
         list: (filters?: DealListFilters) => Promise<DealListResponse>;
     };
+    get dashboard(): {
+        summary: () => Promise<DealDashboardResponse>;
+    };
     private _createDeal;
     private _resumeDeal;
     private _listDeals;
+    private _dashboardSummary;
     /**
      * Make an authenticated HTTP request to the Dealflow API.
      * @internal — exposed for Deal class, not part of the public API.
@@ -330,4 +338,4 @@ declare class DealflowError extends Error {
     toString(): string;
 }
 
-export { type AcceptPayload, type ActOnDealRequest, type ClosePayload, type ComplianceFlag, type CounterPayload, type CreateDealRequest, Deal, type DealAction, type DealConstraints, type DealData, type DealEvent, type DealListFilters, type DealListResponse, type DealOffer, type DealParty, type DealStatus, type DealType, Dealflow, type DealflowConfig, DealflowError, type EscalatePayload, type FlagPayload, type NotePayload, type OfferPayload, type OfferStatus, type PausePayload, type ReassignPayload, type RejectPayload, type WithdrawPayload };
+export { type AcceptPayload, type ActOnDealRequest, type ClosePayload, type ComplianceFlag, type CounterPayload, type CreateDealRequest, Deal, type DealAction, type DealConstraints, type DealDashboardResponse, type DealDashboardTotals, type DealData, type DealEvent, type DealListFilters, type DealListResponse, type DealOffer, type DealParty, type DealStatus, type DealType, Dealflow, type DealflowConfig, DealflowError, type EscalatePayload, type FlagPayload, type NotePayload, type OfferPayload, type OfferStatus, type PausePayload, type ReassignPayload, type RejectPayload, type WithdrawPayload };

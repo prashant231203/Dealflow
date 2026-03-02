@@ -210,6 +210,11 @@ var Dealflow = class {
       list: (filters) => this._listDeals(filters)
     };
   }
+  get dashboard() {
+    return {
+      summary: () => this._dashboardSummary()
+    };
+  }
   // ── Internal API Methods ────────────────────────────────────────────
   async _createDeal(data) {
     if (!data.type || !VALID_DEAL_TYPES.includes(data.type)) {
@@ -234,19 +239,13 @@ var Dealflow = class {
   }
   async _listDeals(filters) {
     const params = new URLSearchParams();
-    if (filters) {
-      for (const [key, value] of Object.entries(filters)) {
-        if (value === void 0 || value === null) continue;
-        if (Array.isArray(value)) {
-          params.set(key, value.join(","));
-        } else {
-          params.set(key, String(value));
-        }
-      }
+    for (const [key, value] of Object.entries(filters ?? {})) {
+      if (value !== void 0) params.set(key, String(value));
     }
-    const query = params.toString();
-    const path = query ? `/api/v1/deals?${query}` : "/api/v1/deals";
-    return this._request("GET", path);
+    return this._request("GET", `/api/v1/deals?${params.toString()}`);
+  }
+  async _dashboardSummary() {
+    return this._request("GET", "/api/v1/dashboard");
   }
   // ── HTTP Layer ──────────────────────────────────────────────────────
   /**

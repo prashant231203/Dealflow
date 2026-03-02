@@ -9,6 +9,18 @@ import type { ActOnDealRequest, OfferPayload } from '../../../../../../types/ind
 import { actOnDeal } from './service.js'
 import { fireWebhooks, mapActionToEvents } from '../../../../../../lib/webhooks/delivery.js'
 
+function dedupeComplianceFlags(flags: typeof memoryStore.deals[number]['compliance_flags']) {
+  const seen = new Set<string>()
+  const deduped = []
+  for (const flag of flags) {
+    const key = `${flag.type}|${flag.severity}|${flag.message}`
+    if (seen.has(key)) continue
+    seen.add(key)
+    deduped.push(flag)
+  }
+  return deduped
+}
+
 export async function POST(
   request: Request,
   context: { params: { dealId: string } },
@@ -30,7 +42,7 @@ export async function POST(
 
     // Step 1: compliance
     const complianceFlags = checkCompliance(acted.deal, body.action, body.payload as unknown as OfferPayload)
-    acted.deal.compliance_flags = [...(acted.deal.compliance_flags ?? []), ...complianceFlags]
+    acted.deal.compliance_flags = dedupeComplianceFlags([...(acted.deal.compliance_flags ?? []), ...complianceFlags])
 
     // Persist deal+offers before recomputing from store
     const dealIndex = memoryStore.deals.findIndex((item) => item.id === deal.id)

@@ -1,6 +1,6 @@
 import { DealflowError } from './errors.js'
 import { Deal } from './deal.js'
-import type { CreateDealRequest, DealData, DealFilters, DealListResponse } from './types.js'
+import type { CreateDealRequest, DealDashboardResponse, DealData, DealFilters, DealListResponse } from './types.js'
 
 export class Dealflow {
   private readonly apiKey: string
@@ -23,6 +23,12 @@ export class Dealflow {
     }
   }
 
+  get dashboard() {
+    return {
+      summary: () => this._dashboardSummary(),
+    }
+  }
+
   private async _createDeal(data: CreateDealRequest): Promise<Deal> {
     const response = await this._request<{ deal: DealData }>('POST', '/api/v1/deals', data)
     return new Deal(response.deal, this)
@@ -40,6 +46,10 @@ export class Dealflow {
     }
 
     return this._request<DealListResponse>('GET', `/api/v1/deals?${params.toString()}`)
+  }
+
+  private async _dashboardSummary(): Promise<DealDashboardResponse> {
+    return this._request<DealDashboardResponse>('GET', '/api/v1/dashboard')
   }
 
   async _request<T>(method: string, path: string, body?: unknown): Promise<T> {

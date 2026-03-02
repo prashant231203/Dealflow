@@ -1,5 +1,28 @@
 import type { DealAction, DealData, DealEvent, DealOffer } from '../../types/index.js'
 
+const DISABLED_GROQ_KEYS = new Set(['', 'your_groq_api_key_here'])
+let groqClientAvailable: boolean | undefined
+let groqWarningLogged = false
+
+function canUseGroq(): boolean {
+  if (groqClientAvailable === false) return false
+
+  const key = process.env.GROQ_API_KEY ?? ''
+  if (DISABLED_GROQ_KEYS.has(key.trim())) return false
+
+  return true
+}
+
+function logGroqWarningOnce(message: string, error?: unknown): void {
+  if (groqWarningLogged) return
+  groqWarningLogged = true
+  if (error) {
+    console.warn(message, error)
+    return
+  }
+  console.warn(message)
+}
+
 function buildFallback(deal: DealData, pendingOffers: DealOffer[]): string {
   return `${deal.type} deal for: ${deal.intent}. Status: ${deal.status}. ${pendingOffers.length} pending offer(s). ${deal.compliance_flags.length} compliance flag(s).`
 }
@@ -96,8 +119,13 @@ export async function generateDealSummary(
 ): Promise<string> {
   const fallback = buildFallback(deal, pendingOffers)
 
+  if (!canUseGroq()) {
+    return fallback
+  }
+
   try {
     const { groq } = await import('../groq/client.js')
+    groqClientAvailable = true
     const userPrompt = buildUserPrompt(deal, recentEvents, pendingOffers, lastAction, actor)
 
     const response = await groq.chat.completions.create({
@@ -121,6 +149,15 @@ export async function generateDealSummary(
 
     return typeof summary === 'string' ? summary.trim() : fallback
   } catch (error) {
+    const isMissingDependency =
+      error instanceof Error && 'code' in error && (error as { code?: string }).code === 'ERR_MODULE_NOT_FOUND'
+
+    if (isMissingDependency) {
+      groqClientAvailable = false
+      logGroqWarningOnce('Groq SDK is not installed. Falling back to deterministic deal summaries.')
+      return fallback
+    }
+
     console.error('Failed to generate deal summary with Groq:', error)
     return fallback
   }

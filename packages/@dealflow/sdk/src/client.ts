@@ -6,6 +6,7 @@ import { DealflowError } from './errors.js'
 import { Deal } from './deal.js'
 import type {
   CreateDealRequest,
+  DealDashboardResponse,
   DealData,
   DealflowConfig,
   DealListFilters,
@@ -15,14 +16,6 @@ import type {
 
 const VALID_DEAL_TYPES: DealType[] = ['negotiation', 'procurement', 'return', 'sales', 'custom']
 
-/**
- * The main entry point for the Dealflow SDK.
- *
- * ```ts
- * const df = new Dealflow({ apiKey: 'df_live_...' })
- * const deal = await df.deals.create({ type: 'negotiation', intent: 'Buy 100 units' })
- * ```
- */
 export class Dealflow {
   private readonly apiKey: string
   private readonly baseUrl: string
@@ -44,6 +37,12 @@ export class Dealflow {
       create: (data: CreateDealRequest): Promise<Deal> => this._createDeal(data),
       resume: (dealId: string): Promise<Deal> => this._resumeDeal(dealId),
       list: (filters?: DealListFilters): Promise<DealListResponse> => this._listDeals(filters),
+    }
+  }
+
+  get dashboard() {
+    return {
+      summary: () => this._dashboardSummary(),
     }
   }
 
@@ -77,21 +76,15 @@ export class Dealflow {
 
   private async _listDeals(filters?: DealListFilters): Promise<DealListResponse> {
     const params = new URLSearchParams()
-
-    if (filters) {
-      for (const [key, value] of Object.entries(filters)) {
-        if (value === undefined || value === null) continue
-        if (Array.isArray(value)) {
-          params.set(key, value.join(','))
-        } else {
-          params.set(key, String(value))
-        }
-      }
+    for (const [key, value] of Object.entries(filters ?? {})) {
+      if (value !== undefined) params.set(key, String(value))
     }
 
-    const query = params.toString()
-    const path = query ? `/api/v1/deals?${query}` : '/api/v1/deals'
-    return this._request<DealListResponse>('GET', path)
+    return this._request<DealListResponse>('GET', `/api/v1/deals?${params.toString()}`)
+  }
+
+  private async _dashboardSummary(): Promise<DealDashboardResponse> {
+    return this._request<DealDashboardResponse>('GET', '/api/v1/dashboard')
   }
 
   // ── HTTP Layer ──────────────────────────────────────────────────────

@@ -3,17 +3,29 @@ import { createDeal as createDealDomain, listDeals as listDealsDomain } from './
 import { generateDealSummary } from '../../../../lib/intelligence/summary.js'
 import { errorResponse, handleRouteError, invalidApiKeyResponse, json, parseJson } from '../../../../lib/utils/http.js'
 import { memoryStore } from '../../../../lib/store/in-memory.js'
+import { ApiError } from '../../../../lib/utils/response.js'
 import type { CreateDealRequest, DealFilters } from '../../../../types/index.js'
 import { fireWebhooks } from '../../../../lib/webhooks/delivery.js'
 
 function parseFilters(url: URL): DealFilters {
+  const createdAfter = url.searchParams.get('created_after') ?? undefined
+  const createdBefore = url.searchParams.get('created_before') ?? undefined
+
+  if (createdAfter && Number.isNaN(Date.parse(createdAfter))) {
+    throw new ApiError('created_after must be a valid ISO date string', 'VALIDATION_ERROR', 422)
+  }
+
+  if (createdBefore && Number.isNaN(Date.parse(createdBefore))) {
+    throw new ApiError('created_before must be a valid ISO date string', 'VALIDATION_ERROR', 422)
+  }
+
   return {
     status: (url.searchParams.get('status') as DealFilters['status']) ?? undefined,
     type: (url.searchParams.get('type') as DealFilters['type']) ?? undefined,
     current_handler: url.searchParams.get('current_handler') ?? undefined,
     tags: url.searchParams.get('tags') ?? undefined,
-    created_after: url.searchParams.get('created_after') ?? undefined,
-    created_before: url.searchParams.get('created_before') ?? undefined,
+    created_after: createdAfter,
+    created_before: createdBefore,
     search: url.searchParams.get('search') ?? undefined,
   }
 }
@@ -46,6 +58,12 @@ export async function GET(request: Request): Promise<Response> {
     const url = new URL(request.url)
     const page = Number(url.searchParams.get('page') ?? '1')
     const perPage = Number(url.searchParams.get('per_page') ?? '20')
+    if (!Number.isInteger(page) || page < 1) {
+      throw new ApiError('page must be an integer >= 1', 'VALIDATION_ERROR', 422)
+    }
+    if (!Number.isInteger(perPage) || perPage < 1 || perPage > 100) {
+      throw new ApiError('per_page must be an integer between 1 and 100', 'VALIDATION_ERROR', 422)
+    }
     const filters = parseFilters(url)
 
     const mine = memoryStore.deals.filter((deal) => deal.developer_id === auth.developer.id)
