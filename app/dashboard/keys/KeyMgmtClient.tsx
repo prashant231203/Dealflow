@@ -7,9 +7,10 @@ import { EmptyState } from '@/components/shared/EmptyState'
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
 import { KeyCreateModal } from '@/components/keys/KeyCreateModal'
 import { createBrowserClient } from '@supabase/ssr'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
+import { useEffect } from 'react'
 
-interface ApiKeyData {
+export interface ApiKeyData {
     id: string
     name: string
     created_at: string
@@ -23,11 +24,18 @@ export function KeyMgmtClient({ initialKeys }: { initialKeys: ApiKeyData[] }) {
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
     const [keyToRevoke, setKeyToRevoke] = useState<ApiKeyData | null>(null)
     const router = useRouter()
+    const searchParams = useSearchParams()
 
     const supabase = createBrowserClient(
         process.env.NEXT_PUBLIC_SUPABASE_URL!,
         process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
     )
+
+    useEffect(() => {
+        if (searchParams.get('create') === '1') {
+            setIsCreateModalOpen(true)
+        }
+    }, [searchParams])
 
     const handleRevoke = async () => {
         if (!keyToRevoke) return
@@ -48,7 +56,7 @@ export function KeyMgmtClient({ initialKeys }: { initialKeys: ApiKeyData[] }) {
                     className="flex items-center gap-2 bg-electric text-black font-bold font-display px-4 py-2 rounded-md hover:bg-white transition-colors"
                 >
                     <Plus className="w-4 h-4" />
-                    Create new key
+                    Create API Key
                 </button>
             </div>
 

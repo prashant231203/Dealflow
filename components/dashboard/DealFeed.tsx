@@ -1,7 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
-import { useRouter } from 'next/navigation'
+import { useState, useEffect } from 'react'
 import { createBrowserClient } from '@supabase/ssr'
 import { DealData } from '@/types'
 import { RelativeTime } from '../shared/RelativeTime'
@@ -9,15 +8,22 @@ import { DealStatusDot } from '../deals/DealStatusDot'
 import { CopyButton } from '../shared/CopyButton'
 import { EmptyState } from '../shared/EmptyState'
 import { Inbox } from 'lucide-react'
+import { useRouter } from 'next/navigation'
 
 interface DealFeedProps {
     initialDeals: DealData[]
     developerId: string
+    initialActiveCount?: number
 }
 
-export function DealFeed({ initialDeals, developerId }: DealFeedProps) {
+export function DealFeed({ initialDeals, developerId, initialActiveCount = 0 }: DealFeedProps) {
     const [deals, setDeals] = useState<DealData[]>(initialDeals)
-    const [isSubscribed, setIsSubscribed] = useState(true)
+    const [highlightedId, setHighlightedId] = useState<string | null>(null)
+    const [newDealId, setNewDealId] = useState<string | null>(null)
+    const [fadingOutId, setFadingOutId] = useState<string | null>(null)
+    const [realtimeConnected, setRealtimeConnected] = useState(false)
+    const [activeCount, setActiveCount] = useState(initialActiveCount)
+
     const router = useRouter()
 
     const supabase = createBrowserClient(
@@ -26,87 +32,95 @@ export function DealFeed({ initialDeals, developerId }: DealFeedProps) {
     )
 
     useEffect(() => {
-        let mounted = true
-
-        // Subscribe to realtime changes on the deals table for this developer
         const channel = supabase
-            .channel('realtime_deals')
+            .channel('deals-feed-' + developerId)
             .on(
                 'postgres_changes',
                 {
-                    event: '*',
+                    event: 'INSERT',
                     schema: 'public',
                     table: 'deals',
                     filter: `developer_id=eq.${developerId}`
                 },
                 (payload) => {
-                    if (!mounted) return
-
-                    if (payload.eventType === 'INSERT') {
-                        const newDeal = payload.new as DealData
-                        // Only add if active/escalated to feed
-                        if (['active', 'escalated'].includes(newDeal.status)) {
-                            setDeals(prev => {
-                                // Avoid duplicates
-                                if (prev.some(d => d.id === newDeal.id)) return prev
-                                return [{ ...newDeal, _isNew: true } as any, ...prev]
-                            })
-
-                            // Remove the _isNew flag after 3 seconds
-                            setTimeout(() => {
-                                setDeals(current =>
-                                    current.map(d => d.id === newDeal.id ? { ...d, _isNew: false } : d)
-                                )
-                            }, 3000)
-                        }
-                    }
-                    else if (payload.eventType === 'UPDATE') {
-                        const updatedDeal = payload.new as DealData
+                    const newDeal = payload.new as DealData
+                    if (['active', 'escalated', 'paused'].includes(newDeal.status)) {
                         setDeals(prev => {
-                            const exists = prev.some(d => d.id === updatedDeal.id)
-
-                            // If it exists but is now closed/cancelled/expired, remove it
-                            if (exists && !['active', 'escalated'].includes(updatedDeal.status)) {
-                                return prev.filter(d => d.id !== updatedDeal.id)
-                            }
-
-                            // If it exists and remains active, update it
-                            if (exists) {
-                                return prev.map(d => d.id === updatedDeal.id ? { ...updatedDeal, _isUpdated: true } as any : d)
-                            }
-
-                            // If it didn't exist but is now active/escalated, add it
-                            if (!exists && ['active', 'escalated'].includes(updatedDeal.status)) {
-                                return [{ ...updatedDeal, _isNew: true } as any, ...prev].sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime())
-                            }
-
-                            return prev
+                            if (prev.some(d => d.id === newDeal.id)) return prev
+                            return [newDeal, ...prev]
                         })
-
-                        if (mounted) {
-                            setTimeout(() => {
-                                setDeals(current =>
-                                    current.map(d => d.id === updatedDeal.id ? { ...d, _isUpdated: false } : d)
-                                )
-                            }, 1000)
-                        }
-                    }
-                    else if (payload.eventType === 'DELETE') {
-                        setDeals(prev => prev.filter(d => d.id !== payload.old.id))
+                        setNewDealId(newDeal.id)
+                        setActiveCount(prev => prev + 1)
+                        setTimeout(() => setNewDealId(null), 3000)
                     }
                 }
             )
+            .on(
+                'postgres_changes',
+                {
+                    event: 'UPDATE',
+                    schema: 'public',
+                    table: 'deals',
+                    filter: `developer_id=eq.${developerId}`
+                },
+                (payload) => {
+                    const updatedDeal = payload.new as DealData
+                    setDeals(prev => {
+                        const exists = prev.find(d => d.id === updatedDeal.id)
+
+                        if (!['active', 'escalated', 'paused'].includes(updatedDeal.status)) {
+                            // Deal became inactive — remove from feed with delay
+                            if (exists) {
+                                setFadingOutId(updatedDeal.id)
+                                setTimeout(() => {
+                                    setDeals(p => p.filter(d => d.id !== updatedDeal.id))
+                                    setFadingOutId(null)
+                                }, 500)
+                            }
+                            return prev
+                        }
+
+                        // Deal updated — highlight and update row
+                        if (exists) {
+                            setHighlightedId(updatedDeal.id)
+                            setTimeout(() => setHighlightedId(null), 600)
+                            return prev.map(d => d.id === updatedDeal.id ? updatedDeal : d)
+                        }
+
+                        // Was inactive but is now active — add to feed
+                        setNewDealId(updatedDeal.id)
+                        setTimeout(() => setNewDealId(null), 3000)
+                        return [updatedDeal, ...prev].sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime())
+                    })
+                }
+            )
+            .on(
+                'postgres_changes',
+                {
+                    event: 'DELETE',
+                    schema: 'public',
+                    table: 'deals',
+                    filter: `developer_id=eq.${developerId}`
+                },
+                (payload) => {
+                    setDeals(prev => prev.filter(d => d.id !== payload.old.id))
+                }
+            )
             .subscribe((status) => {
-                setIsSubscribed(status === 'SUBSCRIBED')
+                if (status === 'SUBSCRIBED') {
+                    setRealtimeConnected(true)
+                }
+                if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+                    setRealtimeConnected(false)
+                }
             })
 
         return () => {
-            mounted = false
             supabase.removeChannel(channel)
         }
     }, [developerId, supabase])
 
-    const handleReconnect = () => {
+    const reconnect = () => {
         router.refresh()
     }
 
@@ -124,10 +138,9 @@ export function DealFeed({ initialDeals, developerId }: DealFeedProps) {
 
     return (
         <div className="bg-surface border border-border-default rounded-xl overflow-hidden relative" aria-live="polite">
-            {/* Realtime loss indicator */}
-            {!isSubscribed && (
+            {!realtimeConnected && (
                 <button
-                    onClick={handleReconnect}
+                    onClick={reconnect}
                     className="absolute top-3 right-4 z-10 flex items-center gap-2 text-xs font-medium text-warning bg-warning-dim px-2 py-1 rounded-md border border-warning/30 hover:bg-warning/20 transition-colors"
                 >
                     <span className="w-1.5 h-1.5 rounded-full bg-warning animate-pulse" />
@@ -137,7 +150,6 @@ export function DealFeed({ initialDeals, developerId }: DealFeedProps) {
 
             <div className="overflow-x-auto">
                 <div className="min-w-[800px]">
-                    {/* Header */}
                     <div className="flex items-center h-10 px-4 border-b border-border-dim text-xs font-medium text-text-muted uppercase tracking-wider">
                         <div className="w-[120px] shrink-0">Deal ID</div>
                         <div className="flex-1 min-w-[200px]">Intent</div>
@@ -147,19 +159,18 @@ export function DealFeed({ initialDeals, developerId }: DealFeedProps) {
                         <div className="w-[160px] shrink-0">Last Updated</div>
                     </div>
 
-                    {/* Body */}
                     <div className="divide-y divide-border-dim">
-                        {deals.map((deal: any) => (
+                        {deals.map(deal => (
                             <div
                                 key={deal.id}
                                 onClick={() => router.push(`/dashboard/deals/${deal.id}`)}
-                                className={`
-                  flex items-center h-[60px] px-4 cursor-pointer transition-all duration-150 group relative
-                  ${deal._isUpdated ? 'animate-pulse-highlight' : 'hover:bg-overlay'}
-                `}
+                                className={`flex items-center h-[60px] px-4 cursor-pointer transition-all duration-150 group relative
+                                    ${highlightedId === deal.id ? 'animate-pulse-highlight' : 'hover:bg-overlay'}
+                                    ${fadingOutId === deal.id ? 'animate-fade-out pointer-events-none' : ''}
+                                `}
                             >
                                 {/* ID */}
-                                <div className="w-[120px] shrink-0 flex items-center gap-2 pr-4">
+                                <div className="w-[120px] shrink-0 flex items-center gap-2 pr-4 relative z-10">
                                     <span className="font-mono text-xs text-text-muted">
                                         {deal.id.slice(0, 10)}...
                                     </span>
@@ -173,9 +184,9 @@ export function DealFeed({ initialDeals, developerId }: DealFeedProps) {
                                     <span className="text-sm text-text-primary truncate max-w-[90%]" title={deal.intent}>
                                         {deal.intent}
                                     </span>
-                                    {deal._isNew && (
+                                    {newDealId === deal.id && (
                                         <span className="ml-3 inline-flex text-[10px] font-bold tracking-wider uppercase bg-electric/20 text-electric px-1.5 py-0.5 rounded animate-fade-up">
-                                            New
+                                            NEW
                                         </span>
                                     )}
                                 </div>

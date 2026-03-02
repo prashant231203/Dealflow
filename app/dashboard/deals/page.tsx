@@ -5,15 +5,15 @@ import { DealStatusDot } from '@/components/deals/DealStatusDot'
 import { RelativeTime } from '@/components/shared/RelativeTime'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { CopyButton } from '@/components/shared/CopyButton'
-import { Filter, Search, ChevronLeft, ChevronRight, Inbox } from 'lucide-react'
+import { Filter, ChevronLeft, ChevronRight, Inbox } from 'lucide-react'
+import { DealSearchInput } from '@/components/deals/DealSearchInput'
 
 export const dynamic = 'force-dynamic'
 
-export default async function DealsListPage({
-    searchParams,
-}: {
-    searchParams: { [key: string]: string | string[] | undefined }
+export default async function DealsListPage(props: {
+    searchParams: Promise<{ [key: string]: string | string[] | undefined }>
 }) {
+    const searchParams = await props.searchParams;
     const cookieStore = await cookies()
     const supabase = createServerClient(
         process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -64,15 +64,7 @@ export default async function DealsListPage({
 
                 {/* Global Filter Bar */}
                 <div className="flex items-center gap-3">
-                    <div className="relative group">
-                        <Search className="w-4 h-4 text-text-muted absolute left-3 top-1/2 -translate-y-1/2 group-focus-within:text-electric transition-colors" />
-                        <input
-                            type="text"
-                            placeholder="Search intents... (coming soon)"
-                            disabled
-                            className="pl-9 pr-4 py-2 bg-surface border border-border-default rounded-md text-sm text-text-primary w-[240px] opacity-50 cursor-not-allowed"
-                        />
-                    </div>
+                    <DealSearchInput />
 
                     <div className="flex items-center gap-2 border border-border-default bg-surface rounded-md px-1 py-1">
                         <Link

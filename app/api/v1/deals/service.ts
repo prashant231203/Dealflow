@@ -1,7 +1,7 @@
-import { createDealId } from '../../../../lib/deals/ids.js'
-import { ok } from '../../../../lib/utils/response.js'
-import { validateCreateDealRequest } from '../../../../lib/utils/validation.js'
-import type { CreateDealRequest, DealData, DealFilters, DealListResponse } from '../../../../types/index.js'
+import { createDealId } from '../../../../lib/deals/ids'
+import { ok } from '../../../../lib/utils/response'
+import { validateCreateDealRequest } from '../../../../lib/utils/validation'
+import type { CreateDealRequest, DealData, DealFilters, DealListResponse } from '../../../../types/index'
 
 export function createDeal(input: CreateDealRequest, developerId: string): { deal: DealData } {
   validateCreateDealRequest(input)

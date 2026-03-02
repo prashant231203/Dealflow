@@ -1,37 +1,49 @@
-import { authenticateRequest } from '../../../../../../lib/auth/middleware.js'
-import { errorResponse, handleRouteError, invalidApiKeyResponse, json } from '../../../../../../lib/utils/http.js'
-import { memoryStore } from '../../../../../../lib/store/in-memory.js'
+import { authenticateRequest } from '../../../../../../lib/auth/middleware'
+import { errorResponse, handleRouteError, invalidApiKeyResponse, json } from '../../../../../../lib/utils/http'
+import { createClient } from '@supabase/supabase-js'
 
-export async function GET(request: Request, { params }: { params: { webhookId: string } }): Promise<Response> {
+const supabaseAdmin = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+)
+
+export async function GET(request: Request, { params }: { params: Promise<{ webhookId: string }> }): Promise<Response> {
+    const { webhookId } = await params
     const auth = await authenticateRequest(request)
     if (!auth) return invalidApiKeyResponse()
 
     try {
-        const webhook = memoryStore.webhooks.find(w => w.id === params.webhookId && w.developer_id === auth.developer.id)
-        if (!webhook) return errorResponse('Webhook not found', 'NOT_FOUND', 404)
+        const { data: webhook, error: webhookError } = await supabaseAdmin
+            .from('webhooks')
+            .select('id')
+            .eq('id', webhookId)
+            .eq('developer_id', auth.developer.id)
+            .single()
+
+        if (webhookError || !webhook) return errorResponse('Webhook not found', 'NOT_FOUND', 404)
 
         const url = new URL(request.url)
         const page = Number(url.searchParams.get('page') ?? '1')
         const perPage = Number(url.searchParams.get('per_page') ?? '50')
         const succeededParam = url.searchParams.get('succeeded')
 
-        let logs = memoryStore.webhook_deliveries.filter(l => l.webhook_id === webhook.id)
+        let query = supabaseAdmin
+            .from('webhook_deliveries')
+            .select('*', { count: 'exact' })
+            .eq('webhook_id', webhookId)
+            .order('created_at', { ascending: false })
 
         if (succeededParam !== null) {
-            const wantSuccess = succeededParam === 'true'
-            logs = logs.filter(l => l.succeeded === wantSuccess)
+            query = query.eq('succeeded', succeededParam === 'true')
         }
 
-        logs.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+        const { data: logs, count, error } = await query.range((page - 1) * perPage, page * perPage - 1)
 
-        const total = logs.length
-        const start = (page - 1) * perPage
-        const end = start + perPage
-        const paginated = logs.slice(start, end)
+        if (error) throw error
 
         return json({
-            logs: paginated,
-            total,
+            logs: logs ?? [],
+            total: count ?? 0,
             page,
             per_page: perPage
         })

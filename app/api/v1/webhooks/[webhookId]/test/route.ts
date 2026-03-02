@@ -1,16 +1,28 @@
-import { authenticateRequest } from '../../../../../../lib/auth/middleware.js'
-import { errorResponse, handleRouteError, invalidApiKeyResponse, json } from '../../../../../../lib/utils/http.js'
-import { memoryStore } from '../../../../../../lib/store/in-memory.js'
-import { deliverToWebhook } from '../../../../../../lib/webhooks/delivery.js'
+import { authenticateRequest } from '../../../../../../lib/auth/middleware'
+import { errorResponse, handleRouteError, invalidApiKeyResponse, json } from '../../../../../../lib/utils/http'
+import { deliverToWebhook } from '../../../../../../lib/webhooks/delivery'
 import crypto from 'node:crypto'
+import { createClient } from '@supabase/supabase-js'
 
-export async function POST(request: Request, { params }: { params: { webhookId: string } }): Promise<Response> {
+const supabaseAdmin = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+)
+
+export async function POST(request: Request, { params }: { params: Promise<{ webhookId: string }> }): Promise<Response> {
+    const { webhookId } = await params
     const auth = await authenticateRequest(request)
     if (!auth) return invalidApiKeyResponse()
 
     try {
-        const webhook = memoryStore.webhooks.find(w => w.id === params.webhookId && w.developer_id === auth.developer.id)
-        if (!webhook) return errorResponse('Webhook not found', 'NOT_FOUND', 404)
+        const { data: webhook, error } = await supabaseAdmin
+            .from('webhooks')
+            .select('*')
+            .eq('id', webhookId)
+            .eq('developer_id', auth.developer.id)
+            .single()
+
+        if (error || !webhook) return errorResponse('Webhook not found', 'NOT_FOUND', 404)
 
         const payload = {
             id: crypto.randomUUID(),

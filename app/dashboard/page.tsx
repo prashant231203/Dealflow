@@ -26,20 +26,30 @@ export default async function DashboardHome() {
     // Fetch parallel stats 
     const developerId = user.id
 
+    const now = Date.now()
+    const thirtyDaysAgo = new Date(now - 30 * 86400000).toISOString()
+    const sixtyDaysAgo = new Date(now - 60 * 86400000).toISOString()
+    const twentyFourHoursAgo = new Date(now - 86400000).toISOString()
+    const fortyEightHoursAgo = new Date(now - 2 * 86400000).toISOString()
+
     const [
         { count: totalDeals },
         { data: activeDealsRaw },
         { count: activeCount },
         { count: closedTodayCount },
+        { count: closedYesterdayCount },
         { data: recentClosedData },
-        { data: allClosedData } // 30 day completion & value
+        { data: allClosedData }, // 30 day completion & value
+        { data: previousClosedData } // 31-60 day completion & value
     ] = await Promise.all([
         supabase.from('deals').select('*', { count: 'exact', head: true }).eq('developer_id', developerId),
         supabase.from('deals').select('*').eq('developer_id', developerId).in('status', ['active', 'escalated']).order('updated_at', { ascending: false }).limit(20),
         supabase.from('deals').select('*', { count: 'exact', head: true }).eq('developer_id', developerId).in('status', ['active', 'escalated']),
-        supabase.from('deals').select('*', { count: 'exact', head: true }).eq('developer_id', developerId).eq('status', 'closed').gte('closed_at', new Date(Date.now() - 86400000).toISOString()),
+        supabase.from('deals').select('*', { count: 'exact', head: true }).eq('developer_id', developerId).in('outcome', ['completed']).gte('closed_at', twentyFourHoursAgo),
+        supabase.from('deals').select('*', { count: 'exact', head: true }).eq('developer_id', developerId).in('outcome', ['completed']).gte('closed_at', fortyEightHoursAgo).lt('closed_at', twentyFourHoursAgo),
         supabase.from('deals').select('id, intent, outcome, final_value, closed_at').eq('developer_id', developerId).in('status', ['closed', 'expired', 'cancelled']).order('closed_at', { ascending: false, nullsFirst: false }).limit(5),
-        supabase.from('deals').select('outcome, final_value').eq('developer_id', developerId).in('status', ['closed', 'expired', 'cancelled']).gte('closed_at', new Date(Date.now() - 30 * 86400000).toISOString())
+        supabase.from('deals').select('outcome, final_value').eq('developer_id', developerId).in('status', ['closed', 'expired', 'cancelled']).gte('closed_at', thirtyDaysAgo),
+        supabase.from('deals').select('outcome, final_value').eq('developer_id', developerId).in('status', ['closed', 'expired', 'cancelled']).gte('closed_at', sixtyDaysAgo).lt('closed_at', thirtyDaysAgo)
     ])
 
     // Total overarching condition
@@ -47,7 +57,6 @@ export default async function DashboardHome() {
         return <OnboardingState />
     }
 
-    // Calculate 30d completion and value
     let completedCount = 0
     let totalClosed30d = allClosedData?.length || 0
     let totalValue30d = 0
@@ -59,7 +68,31 @@ export default async function DashboardHome() {
         }
     }
 
+    let prevCompletedCount = 0
+    let prevTotalClosed = previousClosedData?.length || 0
+    let prevTotalValue = 0
+
+    if (previousClosedData) {
+        for (const d of previousClosedData) {
+            if (d.outcome === 'completed') prevCompletedCount++
+            if (d.final_value && !isNaN(d.final_value)) prevTotalValue += Number(d.final_value)
+        }
+    }
+
     const completionRate = totalClosed30d > 0 ? Math.round((completedCount / totalClosed30d) * 100) : 0
+    const prevCompletionRate = prevTotalClosed > 0 ? Math.round((prevCompletedCount / prevTotalClosed) * 100) : 0
+
+    function calculateTrend(current: number, previous: number, suffix: string): string | null {
+        if (previous === 0 && current === 0) return null
+        if (previous === 0) return null
+        const change = ((current - previous) / previous) * 100
+        const sign = change >= 0 ? '+' : ''
+        return `${sign}${change.toFixed(0)}% from ${suffix}`
+    }
+
+    const closedTodayTrend = calculateTrend(closedTodayCount || 0, closedYesterdayCount || 0, 'yesterday')
+    const completionTrend = calculateTrend(completionRate, prevCompletionRate, 'last month')
+    const valueTrend = calculateTrend(totalValue30d, prevTotalValue, 'last month')
 
     return (
         <div className="animate-fade-up max-w-7xl mx-auto space-y-8">
@@ -80,18 +113,21 @@ export default async function DashboardHome() {
                 <StatCard
                     label="Closed Today"
                     value={closedTodayCount || 0}
+                    trend={closedTodayTrend}
                     iconName="Layers"
                     colorKey="closed"
                 />
                 <StatCard
                     label="Completion Rate"
-                    value={`${completionRate}%`}
+                    value={completionRate}
+                    trend={completionTrend}
                     iconName="Target"
                     colorKey="info"
                 />
                 <StatCard
                     label="Deal Value (30d)"
                     value={totalValue30d}
+                    trend={valueTrend}
                     isCurrency
                     iconName="Coins"
                     colorKey="warning"

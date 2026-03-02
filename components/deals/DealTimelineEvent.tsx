@@ -7,7 +7,7 @@ import { JsonViewer } from '@/components/shared/JsonViewer'
 import { MessageSquare, FileText, CheckCircle2, XCircle, PauseCircle, PlayCircle, AlertTriangle, ArrowRightLeft, ShieldBan, Bot, User, Clock, ChevronDown, ChevronRight } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
-export function DealTimelineEvent({ event, isLast }: { event: DealEvent; isLast: boolean }) {
+export function DealTimelineEvent({ event, isLast, isLatest, style }: { event: DealEvent; isLast: boolean; isLatest?: boolean; style?: React.CSSProperties }) {
     const [showAiSnapshot, setShowAiSnapshot] = useState(false)
 
     // Mapping action to styles and icons
@@ -39,7 +39,7 @@ export function DealTimelineEvent({ event, isLast }: { event: DealEvent; isLast:
     const ActorIcon = isAgent ? Bot : User
 
     return (
-        <div className="relative pl-8 pt-4 pb-8 group">
+        <div className="relative pl-8 pt-4 pb-8 group animate-fade-up" style={{ animationFillMode: 'both', ...style }}>
             {/* Chronological line */}
             {!isLast && (
                 <div className="absolute left-[15px] top-[40px] bottom-0 w-[2px] bg-border-dim group-hover:bg-border-default transition-colors" />
@@ -58,6 +58,11 @@ export function DealTimelineEvent({ event, isLast }: { event: DealEvent; isLast:
                         <span className="text-sm font-medium uppercase tracking-wider text-text-primary bg-overlay px-2 py-0.5 rounded border border-border-dim">
                             {event.action.replace('_', ' ')}
                         </span>
+                        {isLatest && (
+                            <span className="text-[10px] uppercase font-bold tracking-widest text-electric bg-electric/20 px-1.5 py-0.5 rounded animate-pulse">
+                                NEW
+                            </span>
+                        )}
                         <div className="flex items-center gap-1.5 text-xs text-text-secondary">
                             <ActorIcon className="w-3.5 h-3.5" />
                             <span className="font-mono">{event.actor}</span>

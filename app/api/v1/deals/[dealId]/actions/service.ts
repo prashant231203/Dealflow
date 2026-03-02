@@ -1,12 +1,12 @@
-import { ApiError } from '../../../../../../lib/utils/response.js'
+import { ApiError } from '../../../../../../lib/utils/response'
 import {
   parseAcceptPayload,
   parseRejectPayload,
   validateActOnDealRequest,
-} from '../../../../../../lib/utils/validation.js'
-import { assertActionAllowed } from '../../../../../../lib/deals/state-machine.js'
-import { createOfferId } from '../../../../../../lib/deals/ids.js'
-import type { ActOnDealRequest, DealData, DealOffer } from '../../../../../../types/index.js'
+} from '../../../../../../lib/utils/validation'
+import { assertActionAllowed } from '../../../../../../lib/deals/state-machine'
+import { createOfferId } from '../../../../../../lib/deals/ids'
+import type { ActOnDealRequest, DealData, DealOffer } from '../../../../../../types/index'
 
 export async function actOnDeal(
   deal: DealData,

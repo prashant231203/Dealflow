@@ -1,50 +1,72 @@
-import { memoryStore } from '../store/in-memory.js'
-import { generateDealSummary } from '../intelligence/summary.js'
-import { appendEvent } from '../deals/events.js'
-import { fireWebhooks } from '../webhooks/delivery.js'
+import { generateDealSummary } from '../intelligence/summary'
+import { fireWebhooks } from '../webhooks/delivery'
+import { createClient } from '@supabase/supabase-js'
+
+const supabaseAdmin = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+)
 
 export async function expireDealsJob(): Promise<number> {
-    const now = new Date()
+    const now = new Date().toISOString()
     let processedCount = 0
 
-    for (const deal of memoryStore.deals) {
-        if (!deal.expires_at) continue
+    // 1. Find all expired deals
+    const { data: expiredDeals, error: dealError } = await supabaseAdmin
+        .from('deals')
+        .select('*')
+        .in('status', ['active', 'paused', 'escalated'])
+        .lte('expires_at', now)
 
-        const expiresAt = new Date(deal.expires_at)
-        if (expiresAt <= now && ['active', 'paused', 'escalated'].includes(deal.status!)) {
+    if (dealError || !expiredDeals || expiredDeals.length === 0) return 0
 
-            deal.status = 'expired'
-            deal.outcome = 'expired'
-            deal.closed_at = now.toISOString()
+    for (const deal of expiredDeals) {
+        // 2. Fetch dependencies
+        const [
+            { data: offers },
+            { count: historyCount }
+        ] = await Promise.all([
+            supabaseAdmin.from('deal_offers').select('*').eq('deal_id', deal.id),
+            supabaseAdmin.from('deal_events').select('*', { count: 'exact', head: true }).eq('deal_id', deal.id)
+        ])
 
-            const payload = { reason: 'Deal deadline passed', expired_at: now.toISOString() }
-            const event = appendEvent({
-                deal_id: deal.id,
-                action: 'system_expired',
-                actor: 'system',
-                payload,
-                summary_before: deal.current_summary,
-                summary_after: deal.current_summary, // placeholder, will update
-                sequence_number: memoryStore.events.filter((e: any) => e.deal_id === deal.id).length + 1
-            })
+        const pendingOffers = (offers ?? []).filter(o => o.status === 'pending')
 
-            memoryStore.events.push(event)
+        // 3. Update Deal Status
+        await supabaseAdmin.from('deals').update({
+            status: 'expired',
+            outcome: 'expired',
+            closed_at: now,
+            updated_at: now
+        }).eq('id', deal.id)
 
-            // Regenerate summary
-            const recentEvents = memoryStore.events
-                .filter((item: any) => item.deal_id === deal.id)
-                .sort((a: any, b: any) => b.sequence_number - a.sequence_number)
-                .slice(0, 10).reverse()
+        // 4. Add Event
+        const { data: recentEvents } = await supabaseAdmin
+            .from('deal_events')
+            .select('*')
+            .eq('deal_id', deal.id)
+            .order('sequence_number', { ascending: false })
+            .limit(10)
 
-            const pendingOffers = memoryStore.offers.filter((item: any) => item.deal_id === deal.id && item.status === 'pending')
+        const summary = await generateDealSummary(deal, (recentEvents ?? []).reverse(), pendingOffers, 'system_expired', 'system')
 
-            deal.current_summary = await generateDealSummary(deal, recentEvents, pendingOffers, 'system_expired', 'system')
-            event.summary_after = deal.current_summary
-            deal.history = memoryStore.events.filter((e: any) => e.deal_id === deal.id)
+        await supabaseAdmin.from('deal_events').insert({
+            deal_id: deal.id,
+            action: 'system_expired',
+            actor: 'system',
+            payload: { reason: 'Deal deadline passed', expired_at: now },
+            summary_before: deal.current_summary,
+            summary_after: summary,
+            sequence_number: (historyCount ?? 0) + 1
+        })
 
-            fireWebhooks(deal.developer_id, deal.id, 'deal.expired', deal, ['deal.status_changed'])
-            processedCount++
-        }
+        // Update deal summary again with the new summary
+        await supabaseAdmin.from('deals').update({ current_summary: summary }).eq('id', deal.id)
+
+        // 5. Fire Hooks
+        fireWebhooks(deal.developer_id, deal.id, 'deal.expired', { ...deal, status: 'expired', current_summary: summary }, ['deal.status_changed'])
+
+        processedCount++
     }
 
     return processedCount

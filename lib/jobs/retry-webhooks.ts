@@ -1,32 +1,43 @@
-import { memoryStore } from '../store/in-memory.js'
-import { deliverToWebhook } from '../webhooks/delivery.js'
+import { deliverToWebhook } from '../webhooks/delivery'
+import { createClient } from '@supabase/supabase-js'
+
+const supabaseAdmin = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+)
 
 export async function retryWebhooksJob(): Promise<number> {
-    const now = new Date()
+    const now = new Date().toISOString()
     let processedCount = 0
 
-    // We filter out items we want to process
-    // We need to mutate the array safely, so we iterate over a copy of the matching indices
-    const queue = memoryStore.webhook_retry_queue
+    // 1. Find all items ready for retry in Supabase
+    const { data: toRetry, error: queueError } = await supabaseAdmin
+        .from('webhook_retry_queue')
+        .select(`
+            *,
+            webhook:webhooks (*)
+        `)
+        .lte('retry_after', now)
 
-    // Find all items ready for retry
-    const toRetry = queue.filter((item: any) => new Date(item.retry_after) <= now)
+    if (queueError || !toRetry) return 0
 
     for (const item of toRetry) {
-        const webhook = memoryStore.webhooks.find((w: any) => w.id === item.webhook_id)
+        // 2. Remove the entry before processing to avoid infinite loops if the process crashes
+        const { error: deleteError } = await supabaseAdmin
+            .from('webhook_retry_queue')
+            .delete()
+            .eq('id', item.id)
 
-        // Remove the item right away - if it fails again and has retries left, 
-        // deliverToWebhook will insert a fresh retry row with the updated parameters
-        const originIndex = queue.findIndex((q: any) => q.id === item.id)
-        if (originIndex !== -1) queue.splice(originIndex, 1)
+        if (deleteError) continue
 
-        // Check if webhook is still active
+        // 3. Check if webhook exists and is still active
+        const webhook = item.webhook
         if (!webhook || !webhook.is_active) {
-            continue // skip and it's already deleted from queue
+            continue
         }
 
-        // Attempt redelivery
-        await deliverToWebhook(webhook, item.payload, item.next_attempt_number)
+        // 4. Attempt redelivery
+        await deliverToWebhook(webhook, item.payload as any, item.next_attempt_number)
         processedCount++
     }
 

@@ -1,18 +1,20 @@
-import { memoryStore } from '../store/in-memory.js'
-import type { DealConstraints, DealOffer, DealType } from '../../types/index.js'
+import type { DealConstraints, DealOffer, DealType } from '../../types/index'
 
 export function computeBestOffer(
   dealId: string,
   constraints: DealConstraints,
   dealType: DealType,
+  allOffers: DealOffer[]
 ): DealOffer | null {
   try {
-    const pendingOffers = memoryStore.offers.filter((offer) => offer.deal_id === dealId && offer.status === 'pending')
+    const pendingOffers = allOffers.filter((offer) => offer.deal_id === dealId && offer.status === 'pending')
     if (pendingOffers.length === 0) return null
 
     const filtered = pendingOffers.filter((offer) => {
-      if (constraints.budget_max !== undefined && offer.price > constraints.budget_max) return false
-      if (constraints.budget_min !== undefined && offer.price < constraints.budget_min) return false
+      // Ensure constraints exist before checking
+      if (!constraints) return true
+      if (constraints.budget_max !== undefined && constraints.budget_max !== null && offer.price > constraints.budget_max) return false
+      if (constraints.budget_min !== undefined && constraints.budget_min !== null && offer.price < constraints.budget_min) return false
       return true
     })
 

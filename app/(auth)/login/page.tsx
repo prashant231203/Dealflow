@@ -32,7 +32,7 @@ export default function LoginPage() {
             setError(error.message)
             setIsLoading(false)
         } else {
-            router.push('/dashboard')
+            router.push('/dashboard/keys?create=1')
             router.refresh()
         }
     }

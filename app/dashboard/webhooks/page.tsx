@@ -24,7 +24,7 @@ export default async function WebhooksPage() {
     // Fetch webhooks
     const { data: webhooks } = await supabase
         .from('webhooks')
-        .select('*')
+        .select('id, developer_id, url, events, is_active, description, created_at, last_triggered_at')
         .eq('developer_id', user.id)
         .order('created_at', { ascending: false })
 

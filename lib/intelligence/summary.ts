@@ -1,4 +1,4 @@
-import type { DealAction, DealData, DealEvent, DealOffer } from '../../types/index.js'
+import type { DealAction, DealData, DealEvent, DealOffer } from '../../types/index'
 
 const DISABLED_GROQ_KEYS = new Set(['', 'your_groq_api_key_here'])
 let groqClientAvailable: boolean | undefined
@@ -124,7 +124,7 @@ export async function generateDealSummary(
   }
 
   try {
-    const { groq } = await import('../groq/client.js')
+    const { groq } = await import('../groq/client')
     groqClientAvailable = true
     const userPrompt = buildUserPrompt(deal, recentEvents, pendingOffers, lastAction, actor)
 

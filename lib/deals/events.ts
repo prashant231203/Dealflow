@@ -1,5 +1,5 @@
-import type { DealAction, DealEvent } from '../../types/index.js'
-import { createEventId } from './ids.js'
+import type { DealAction, DealEvent } from '../../types/index'
+import { createEventId } from './ids'
 
 export interface AppendEventInput {
   deal_id: string

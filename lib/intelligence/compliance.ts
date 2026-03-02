@@ -1,4 +1,4 @@
-import type { ComplianceFlag, DealAction, DealData, OfferPayload } from '../../types/index.js'
+import type { ComplianceFlag, DealAction, DealData, OfferPayload } from '../../types/index'
 
 function asPositiveNumber(value: unknown): number | null {
   return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : null

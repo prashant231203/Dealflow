@@ -21,10 +21,10 @@ export function OnboardingState() {
                 <div className="bg-surface border border-border-default rounded-xl p-6 relative group overflow-hidden">
                     <div className="absolute top-0 right-0 w-32 h-32 bg-electric/5 rounded-full blur-2xl -translate-y-1/2 translate-x-1/2 group-hover:bg-electric/10 transition-colors" />
                     <div className="text-xs font-mono text-electric mb-3 border border-electric/30 bg-electric/5 inline-block px-2 py-0.5 rounded">01</div>
-                    <h3 className="font-medium text-text-primary mb-2">Copy your API key</h3>
+                    <h3 className="font-medium text-text-primary mb-2">Create your API key</h3>
                     <p className="text-sm text-text-secondary mb-6 leading-relaxed">Generated exclusively for this project to authenticate requests.</p>
-                    <Link href="/dashboard/keys" className="flex items-center gap-2 text-sm text-white bg-electric/10 hover:bg-electric border border-electric/30 hover:border-electric hover:text-black font-medium px-4 py-2 rounded transition-colors w-fit">
-                        <KeyRound className="w-4 h-4" /> Go to API Keys
+                    <Link href="/dashboard/keys?create=1" className="flex items-center gap-2 text-sm text-white bg-electric/10 hover:bg-electric border border-electric/30 hover:border-electric hover:text-black font-medium px-4 py-2 rounded transition-colors w-fit">
+                        <KeyRound className="w-4 h-4" /> Create API Key
                     </Link>
                 </div>
 

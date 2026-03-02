@@ -2,57 +2,54 @@
 
 import { useState, useEffect } from 'react'
 import { cn } from '@/lib/utils'
-
 import * as Icons from 'lucide-react'
+
+export function useCountUp(target: number, duration: number = 800) {
+    const [count, setCount] = useState(0)
+
+    useEffect(() => {
+        if (target === 0) {
+            setCount(0)
+            return
+        }
+
+        const start = Date.now()
+        const timer = setInterval(() => {
+            const elapsed = Date.now() - start
+            const progress = Math.min(elapsed / duration, 1)
+            // Ease out: starts fast, slows down
+            const eased = 1 - Math.pow(1 - progress, 3)
+            setCount(Math.floor(eased * target))
+            if (progress >= 1) clearInterval(timer)
+        }, 16) // ~60fps
+        return () => clearInterval(timer)
+    }, [target, duration])
+
+    return count
+}
 
 interface StatCardProps {
     label: string
     value: number | string
-    trend?: string
-    trendValue?: number
+    trend?: string | null
     iconName: keyof typeof Icons
     colorKey: 'active' | 'closed' | 'info' | 'warning'
     isCurrency?: boolean
 }
 
-export function StatCard({ label, value, trend, trendValue, iconName, colorKey, isCurrency }: StatCardProps) {
-    const [displayValue, setDisplayValue] = useState(0)
-
-    // Animated counter
-    useEffect(() => {
-        if (typeof value !== 'number') return
-
-        let start = 0
-        const end = value
-        const duration = 800
-        const startObj = performance.now()
-
-        const animate = (time: number) => {
-            let progress = (time - startObj) / duration
-            if (progress > 1) progress = 1
-
-            // easeOutExpo
-            const easing = progress === 1 ? 1 : 1 - Math.pow(2, -10 * progress)
-            setDisplayValue(Math.floor(end * easing))
-
-            if (progress < 1) {
-                requestAnimationFrame(animate)
-            } else {
-                setDisplayValue(end)
-            }
-        }
-
-        requestAnimationFrame(animate)
-    }, [value])
+export function StatCard({ label, value, trend, iconName, colorKey, isCurrency }: StatCardProps) {
+    // Determine target number for numeric values to pass to hook
+    const targetVal = typeof value === 'number' ? value : 0
+    const displayValue = useCountUp(targetVal, 800)
 
     const borderColors = {
-        active: 'border-l-status-active shadow-[-4px_0_12px_var(--status-active)]', // actually mapping glowing shadows internally if needed, but per specs we want specific borders
+        active: 'border-l-status-active shadow-[-4px_0_12px_var(--status-active)]',
         closed: 'border-l-status-closed',
         info: 'border-l-info',
         warning: 'border-l-warning'
     }
 
-    const trendColors = (trendValue || 0) >= 0 ? 'text-positive' : 'text-danger'
+    const trendColors = trend?.startsWith('+') ? 'text-positive' : trend?.startsWith('-') ? 'text-danger' : 'text-text-muted'
 
     return (
         <div className={cn(

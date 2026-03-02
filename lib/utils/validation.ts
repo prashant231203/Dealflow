@@ -3,8 +3,8 @@ import type {
   ActOnDealRequest,
   CreateDealRequest,
   RejectPayload,
-} from '../../types/index.js'
-import { ApiError } from './response.js'
+} from '../../types/index'
+import { ApiError } from './response'
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null

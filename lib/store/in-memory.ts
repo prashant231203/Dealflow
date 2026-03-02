@@ -1,4 +1,4 @@
-import { generateApiKey } from '../auth/api-keys.js'
+import { generateApiKey } from '../auth/api-keys'
 import type {
   DealData,
   DealEvent,
@@ -6,7 +6,7 @@ import type {
   WebhookRecord,
   WebhookDeliveryRecord,
   WebhookRetryQueueRecord
-} from '../../types/index.js'
+} from '../../types/index'
 
 export interface DeveloperRecord {
   id: string

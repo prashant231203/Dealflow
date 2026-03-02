@@ -1,5 +1,5 @@
-import { errorResponse, handleRouteError, json } from '../../../../lib/utils/http.js'
-import { expireOffersJob } from '../../../../lib/jobs/expire-offers.js'
+import { errorResponse, handleRouteError, json } from '../../../../lib/utils/http'
+import { expireOffersJob } from '../../../../lib/jobs/expire-offers'
 
 export async function GET(request: Request): Promise<Response> {
     const authHeader = request.headers.get('authorization')

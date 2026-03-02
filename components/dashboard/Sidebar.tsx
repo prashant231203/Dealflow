@@ -55,7 +55,7 @@ export function Sidebar() {
         <>
             {/* Desktop Sidebar */}
             <nav
-                className={`hidden md:flex flex-col bg-surface border-r border-border-dim transition-all duration-300 relative z-20 ${isCollapsed ? 'w[68px] min-w-[68px]' : 'w-[220px] min-w-[220px]'
+                className={`hidden md:flex flex-col bg-surface border-r border-border-dim transition-all duration-300 relative z-20 ${isCollapsed ? 'w-[68px] min-w-[68px]' : 'w-[220px] min-w-[220px]'
                     }`}
             >
                 <div className={`p-4 flex items-center h-16 ${isCollapsed ? 'justify-center' : 'justify-between'}`}>

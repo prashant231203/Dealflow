@@ -1,4 +1,4 @@
-import { ApiError } from './response.js'
+import { ApiError } from './response'
 
 export function json(data: unknown, status = 200): Response {
   return new Response(JSON.stringify(data), {

@@ -1,34 +1,16 @@
-import { authenticateRequest } from '../../../../lib/auth/middleware.js'
-import { createDeal as createDealDomain, listDeals as listDealsDomain } from './service.js'
-import { generateDealSummary } from '../../../../lib/intelligence/summary.js'
-import { errorResponse, handleRouteError, invalidApiKeyResponse, json, parseJson } from '../../../../lib/utils/http.js'
-import { memoryStore } from '../../../../lib/store/in-memory.js'
-import { ApiError } from '../../../../lib/utils/response.js'
-import type { CreateDealRequest, DealFilters } from '../../../../types/index.js'
-import { fireWebhooks } from '../../../../lib/webhooks/delivery.js'
+import { authenticateRequest } from '../../../../lib/auth/middleware'
+import { generateDealSummary } from '../../../../lib/intelligence/summary'
+import { handleRouteError, invalidApiKeyResponse, json, parseJson, errorResponse } from '../../../../lib/utils/http'
+import { ApiError } from '../../../../lib/utils/response'
+import type { CreateDealRequest } from '../../../../types/index'
+import { fireWebhooks } from '../../../../lib/webhooks/delivery'
+import { createClient } from '@supabase/supabase-js'
+import { createDealId } from '../../../../lib/deals/ids'
 
-function parseFilters(url: URL): DealFilters {
-  const createdAfter = url.searchParams.get('created_after') ?? undefined
-  const createdBefore = url.searchParams.get('created_before') ?? undefined
-
-  if (createdAfter && Number.isNaN(Date.parse(createdAfter))) {
-    throw new ApiError('created_after must be a valid ISO date string', 'VALIDATION_ERROR', 422)
-  }
-
-  if (createdBefore && Number.isNaN(Date.parse(createdBefore))) {
-    throw new ApiError('created_before must be a valid ISO date string', 'VALIDATION_ERROR', 422)
-  }
-
-  return {
-    status: (url.searchParams.get('status') as DealFilters['status']) ?? undefined,
-    type: (url.searchParams.get('type') as DealFilters['type']) ?? undefined,
-    current_handler: url.searchParams.get('current_handler') ?? undefined,
-    tags: url.searchParams.get('tags') ?? undefined,
-    created_after: createdAfter,
-    created_before: createdBefore,
-    search: url.searchParams.get('search') ?? undefined,
-  }
-}
+const supabaseAdmin = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+)
 
 export async function POST(request: Request): Promise<Response> {
   const auth = await authenticateRequest(request)
@@ -36,15 +18,50 @@ export async function POST(request: Request): Promise<Response> {
 
   try {
     const body = await parseJson<CreateDealRequest>(request)
-    const created = createDealDomain(body, auth.developer.id)
-    const initialSummary = await generateDealSummary(created.deal, [], [], 'created', auth.developer.id)
-    created.deal.current_summary = initialSummary
-    memoryStore.deals.push(created.deal)
+    const dealId = createDealId()
+    const now = new Date().toISOString()
+
+    // Create the initial deal record
+    const { data: deal, error: insertError } = await supabaseAdmin
+      .from('deals')
+      .insert({
+        id: dealId,
+        developer_id: auth.developer.id,
+        type: body.type,
+        intent: body.intent,
+        status: 'active',
+        parties: body.parties ?? [],
+        constraints: body.constraints ?? {},
+        metadata: body.metadata ?? {},
+        tags: body.tags ?? [],
+        created_at: now,
+        updated_at: now,
+        expires_at: body.expires_in ? new Date(Date.now() + body.expires_in * 1000).toISOString() : null,
+      })
+      .select()
+      .single()
+
+    if (insertError) throw insertError
+
+    const initialSummary = await generateDealSummary(deal, [], [], 'created', auth.developer.id)
+
+    // Update with summary and create initial event
+    await Promise.all([
+      supabaseAdmin.from('deals').update({ current_summary: initialSummary }).eq('id', dealId),
+      supabaseAdmin.from('deal_events').insert({
+        deal_id: dealId,
+        action: 'created',
+        actor: 'system',
+        payload: body,
+        summary_after: initialSummary,
+        sequence_number: 0
+      })
+    ])
 
     // Fire webhooks asynchronously — do not await
-    fireWebhooks(auth.developer.id, created.deal.id, 'deal.created', created.deal, ['deal.active'])
+    fireWebhooks(auth.developer.id, dealId, 'deal.created', deal, ['deal.active'])
 
-    return json(created, 201)
+    return json({ deal: { ...deal, current_summary: initialSummary } }, 201)
   } catch (error) {
     return handleRouteError(error)
   }
@@ -58,17 +75,33 @@ export async function GET(request: Request): Promise<Response> {
     const url = new URL(request.url)
     const page = Number(url.searchParams.get('page') ?? '1')
     const perPage = Number(url.searchParams.get('per_page') ?? '20')
-    if (!Number.isInteger(page) || page < 1) {
-      throw new ApiError('page must be an integer >= 1', 'VALIDATION_ERROR', 422)
-    }
-    if (!Number.isInteger(perPage) || perPage < 1 || perPage > 100) {
-      throw new ApiError('per_page must be an integer between 1 and 100', 'VALIDATION_ERROR', 422)
-    }
-    const filters = parseFilters(url)
 
-    const mine = memoryStore.deals.filter((deal) => deal.developer_id === auth.developer.id)
-    const result = listDealsDomain(mine, filters, page, perPage)
-    return json(result.body, result.status)
+    let query = supabaseAdmin
+      .from('deals')
+      .select('*', { count: 'exact' })
+      .eq('developer_id', auth.developer.id)
+      .order('created_at', { ascending: false })
+
+    // Apply filters
+    const status = url.searchParams.get('status')
+    if (status) query = query.eq('status', status)
+
+    const type = url.searchParams.get('type')
+    if (type) query = query.eq('type', type)
+
+    const search = url.searchParams.get('search')
+    if (search) query = query.ilike('intent', `%${search}%`)
+
+    const { data: deals, count, error } = await query.range((page - 1) * perPage, page * perPage - 1)
+
+    if (error) throw error
+
+    return json({
+      deals: deals ?? [],
+      total: count ?? 0,
+      page,
+      per_page: perPage
+    }, 200)
   } catch (error) {
     return handleRouteError(error)
   }

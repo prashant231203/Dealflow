@@ -1,4 +1,4 @@
-import type { DealAction, DealStatus } from '../../types/index.js'
+import type { DealAction, DealStatus } from '../../types/index'
 
 export const VALID_TRANSITIONS: Record<DealStatus, DealAction[]> = {
   active: [

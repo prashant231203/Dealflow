@@ -1,8 +1,12 @@
-import { authenticateRequest } from '../../../../lib/auth/middleware.js'
-import { errorResponse, handleRouteError, invalidApiKeyResponse, json, parseJson } from '../../../../lib/utils/http.js'
-import { memoryStore } from '../../../../lib/store/in-memory.js'
-import type { WebhookRecord } from '../../../../types/index.js'
+import { authenticateRequest } from '../../../../lib/auth/middleware'
+import { errorResponse, handleRouteError, invalidApiKeyResponse, json, parseJson } from '../../../../lib/utils/http'
 import crypto from 'node:crypto'
+import { createClient } from '@supabase/supabase-js'
+
+const supabaseAdmin = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+)
 
 export const VALID_WEBHOOK_EVENTS = new Set([
     'deal.*',
@@ -72,21 +76,25 @@ export async function POST(request: Request): Promise<Response> {
         }
 
         const secret = crypto.randomBytes(32).toString('hex')
-        const webhook: WebhookRecord = {
-            id: crypto.randomUUID(),
-            developer_id: auth.developer.id,
-            url: body.url,
-            events: body.events,
-            secret,
-            is_active: true,
-            description: body.description,
-            created_at: new Date().toISOString()
-        }
+        const { data: webhook, error } = await supabaseAdmin
+            .from('webhooks')
+            .insert({
+                developer_id: auth.developer.id,
+                url: body.url,
+                events: body.events,
+                secret,
+                is_active: true,
+                description: body.description,
+                created_at: new Date().toISOString()
+            })
+            .select('id, developer_id, url, events, description, is_active, created_at')
+            .single()
 
-        memoryStore.webhooks.push(webhook)
+        if (error) throw error
 
         return json({
             ...webhook,
+            secret, // Return the raw secret only once
             secret_note: 'Store this secret securely. It will not be shown again.'
         }, 201)
 
@@ -103,16 +111,20 @@ export async function GET(request: Request): Promise<Response> {
         const url = new URL(request.url)
         const isActiveParam = url.searchParams.get('is_active')
 
-        let whs = memoryStore.webhooks.filter(w => w.developer_id === auth.developer.id)
+        let query = supabaseAdmin
+            .from('webhooks')
+            .select('id, developer_id, url, events, description, is_active, created_at, last_triggered_at')
+            .eq('developer_id', auth.developer.id)
 
         if (isActiveParam !== null) {
-            const wantActive = isActiveParam === 'true'
-            whs = whs.filter(w => w.is_active === wantActive)
+            query = query.eq('is_active', isActiveParam === 'true')
         }
 
-        // Omit secret
-        const results = whs.map(({ secret, ...rest }) => rest)
-        return json({ webhooks: results }, 200)
+        const { data: webhooks, error } = await query
+
+        if (error) throw error
+
+        return json({ webhooks: webhooks ?? [] }, 200)
 
     } catch (error) {
         return handleRouteError(error)

@@ -1,5 +1,5 @@
-import { errorResponse, handleRouteError, json } from '../../../../lib/utils/http.js'
-import { retryWebhooksJob } from '../../../../lib/jobs/retry-webhooks.js'
+import { errorResponse, handleRouteError, json } from '../../../../lib/utils/http'
+import { retryWebhooksJob } from '../../../../lib/jobs/retry-webhooks'
 
 export async function GET(request: Request): Promise<Response> {
     const authHeader = request.headers.get('authorization')

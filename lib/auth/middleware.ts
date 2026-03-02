@@ -1,5 +1,10 @@
-import { hashApiKey } from './api-keys.js'
-import { memoryStore } from '../store/in-memory.js'
+import { hashApiKey } from './api-keys'
+import { createClient } from '@supabase/supabase-js'
+
+const supabaseAdmin = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+)
 
 export interface AuthenticatedContext {
   developer: {
@@ -23,16 +28,37 @@ export async function authenticateRequest(request: Request): Promise<Authenticat
   }
 
   const tokenHash = hashApiKey(rawToken)
-  const apiKey = memoryStore.apiKeys.find((item) => item.key_hash === tokenHash && !item.revoked_at)
-  if (!apiKey) {
+
+  // Query Supabase for the API key
+  const { data: apiKey, error: keyError } = await supabaseAdmin
+    .from('api_keys')
+    .select('*, developers(*)')
+    .eq('key_hash', tokenHash)
+    .is('revoked_at', null)
+    .single()
+
+  if (keyError || !apiKey) {
     return null
   }
 
-  const developer = memoryStore.developers.find((item) => item.id === apiKey.developer_id)
+  const developer = apiKey.developers
   if (!developer) {
     return null
   }
 
-  apiKey.last_used_at = new Date().toISOString()
-  return { developer }
+  // Update last_used_at timestamp
+  await supabaseAdmin
+    .from('api_keys')
+    .update({ last_used_at: new Date().toISOString() })
+    .eq('id', apiKey.id)
+
+  return {
+    developer: {
+      id: developer.id,
+      email: developer.email,
+      name: developer.name,
+      company: developer.company,
+      created_at: developer.created_at
+    }
+  }
 }
