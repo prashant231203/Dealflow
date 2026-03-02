@@ -41,24 +41,24 @@ function buildUserPrompt(
 
   const offers = pendingOffers.length
     ? pendingOffers
-        .map(
-          (offer) =>
-            `- Offer ${offer.id}: ${offer.price} ${offer.currency} by ${offer.made_by}. Within budget: ${offer.within_budget}. Quantity: ${offer.quantity ?? 'not specified'}. Conditions: ${(offer.conditions ?? []).join(', ') || 'none'}. Expires: ${offer.expires_at ?? 'no expiry'}.`,
-        )
-        .join('\n')
+      .map(
+        (offer) =>
+          `- Offer ${offer.id}: ${offer.price} ${offer.currency} by ${offer.made_by}. Within budget: ${offer.within_budget}. Quantity: ${offer.quantity ?? 'not specified'}. Conditions: ${(offer.conditions ?? []).join(', ') || 'none'}. Expires: ${offer.expires_at ?? 'no expiry'}.`,
+      )
+      .join('\n')
     : 'None'
 
   const flags = deal.compliance_flags.length
     ? deal.compliance_flags
-        .map((flag) => `- ${flag.severity.toUpperCase()}: ${flag.message} (detected at ${flag.detected_at})`)
-        .join('\n')
+      .map((flag) => `- ${flag.severity.toUpperCase()}: ${flag.message} (detected at ${flag.detected_at})`)
+      .join('\n')
     : 'None'
 
   const activity = recentEvents.length
     ? [...recentEvents]
-        .sort((a, b) => a.sequence_number - b.sequence_number)
-        .map((event) => `[${event.created_at}] ${event.actor} took action '${event.action}': ${JSON.stringify(event.payload)}`)
-        .join('\n')
+      .sort((a, b) => a.sequence_number - b.sequence_number)
+      .map((event) => `[Event ID: ${event.id}] (${event.created_at}) ${event.actor} took action '${event.action}': ${JSON.stringify(event.payload)}`)
+      .join('\n')
     : 'No activity yet'
 
   return `DEAL ID: ${deal.id}
@@ -93,22 +93,22 @@ DEAL CREATED: ${deal.created_at}
 DEAL EXPIRES: ${deal.expires_at ?? 'no expiry'}`
 }
 
-const SYSTEM_PROMPT = `You are a commerce deal intelligence system. Your job is to write a concise briefing about the current state of a commerce deal for an AI agent that needs to immediately understand where things stand and what to do next.
+const SYSTEM_PROMPT = `You are a strict M2M commerce intelligence system. Your job is to produce a deterministic, machine-readable brief about the current state of a commerce deal.
 
-Your briefing must always answer these questions in 2-4 sentences:
-1. What is this deal trying to accomplish? (be specific — mention product, quantity, budget if present)
-2. What is the current status and who currently has the deal?
-3. Are there any open offers? If yes, mention the price and whether it is within budget.
-4. Are there any compliance flags or policy violations? If yes, state them clearly.
-5. What should happen next?
+You must output valid JSON ONLY, conforming exactly to this structure:
+{
+  "active_constraints": { "key": "value mappings of the constraints" },
+  "verifiable_evidence_ids": ["string array of Event IDs cited as proof from the RECENT ACTIVITY list"],
+  "suggested_next_action": {
+    "action": "string indicating recommended next DealAction. Note: Must be a valid DealAction",
+    "reason": "string explaining the mathematical or policy rationale"
+  }
+}
 
 Rules:
-- Always include specific numbers (prices, quantities, deadlines) when they are available.
-- Never say "the deal is progressing" or other vague filler phrases.
-- Never use bullet points, markdown, or formatting of any kind.
-- Write as if briefing a new AI agent who has never seen this deal and must act on it immediately.
-- If the deal is closed, state the outcome and final value clearly.
-- Keep it under 4 sentences. Clarity over completeness.`
+- Output strictly JSON. Do not use markdown blocks.
+- Do not add any explanatory text outside the JSON object.
+- Make claims concise and objective.`
 
 export async function generateDealSummary(
   deal: DealData,
@@ -117,7 +117,12 @@ export async function generateDealSummary(
   lastAction?: DealAction,
   actor?: string,
 ): Promise<string> {
-  const fallback = buildFallback(deal, pendingOffers)
+  const fallbackObj = {
+    active_constraints: deal.constraints,
+    verifiable_evidence_ids: recentEvents.map(e => e.id),
+    suggested_next_action: { action: 'pause', reason: 'Deterministic fallback triggered' }
+  }
+  const fallback = JSON.stringify(fallbackObj)
 
   if (!canUseGroq()) {
     return fallback
@@ -129,25 +134,32 @@ export async function generateDealSummary(
     const userPrompt = buildUserPrompt(deal, recentEvents, pendingOffers, lastAction, actor)
 
     const response = await groq.chat.completions.create({
-      model: 'openai/gpt-oss-120b',
+      model: 'llama-3.1-8b-instant', // using a fast JSON-capable model
       messages: [
         { role: 'system', content: SYSTEM_PROMPT },
         { role: 'user', content: userPrompt },
       ],
-      max_completion_tokens: 300,
-      temperature: 1,
-      top_p: 1,
-      stream: false,
-      stop: null,
-      ...( { reasoning_effort: 'medium' } as Record<string, unknown> ),
-    } as Record<string, unknown>)
+      response_format: { type: 'json_object' },
+      max_tokens: 400,
+      temperature: 0,
+    })
 
     const summary = response.choices[0]?.message?.content
-    if (!summary || (typeof summary === 'string' && summary.trim().length === 0)) {
+    if (!summary || summary.trim().length === 0) {
       return fallback
     }
 
-    return typeof summary === 'string' ? summary.trim() : fallback
+    try {
+      // Validate it parses correctly
+      const parsed = JSON.parse(summary)
+      if (parsed.active_constraints && Array.isArray(parsed.verifiable_evidence_ids) && parsed.suggested_next_action) {
+        return JSON.stringify(parsed)
+      }
+    } catch {
+      // Parsing failed, return fallback
+    }
+
+    return fallback
   } catch (error) {
     const isMissingDependency =
       error instanceof Error && 'code' in error && (error as { code?: string }).code === 'ERR_MODULE_NOT_FOUND'

@@ -92,6 +92,30 @@ export async function GET(request: Request): Promise<Response> {
     const search = url.searchParams.get('search')
     if (search) query = query.ilike('intent', `%${search}%`)
 
+    // PPP Discovery Support (metadata. / constraints.)
+    for (const [key, value] of Array.from(url.searchParams.entries())) {
+      if (key.startsWith('metadata.') || key.startsWith('constraints.')) {
+        // Expected format for value: "operator:number/string" e.g., "gte:1000" or just direct eq value e.g "custom_req"
+        const [column, ...pathSegments] = key.split('.')
+        const jsonPath = pathSegments.join('->')
+
+        const parts = value.split(':')
+        if (parts.length === 2 && ['eq', 'gt', 'lt', 'gte', 'lte'].includes(parts[0])) {
+          const [operator, valStr] = parts
+          const val = isNaN(Number(valStr)) ? valStr : Number(valStr)
+
+          if (operator === 'gt') query = query.gt(`${column}->>${jsonPath}`, val)
+          else if (operator === 'lt') query = query.lt(`${column}->>${jsonPath}`, val)
+          else if (operator === 'gte') query = query.gte(`${column}->>${jsonPath}`, val)
+          else if (operator === 'lte') query = query.lte(`${column}->>${jsonPath}`, val)
+          else query = query.eq(`${column}->>${jsonPath}`, val)
+        } else {
+          // Default to exact match
+          query = query.eq(`${column}->>${jsonPath}`, value)
+        }
+      }
+    }
+
     const { data: deals, count, error } = await query.range((page - 1) * perPage, page * perPage - 1)
 
     if (error) throw error

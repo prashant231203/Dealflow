@@ -11,6 +11,7 @@ export function createDeal(input: CreateDealRequest, developerId: string): { dea
   return {
     deal: {
       id: createDealId(),
+      version: 1,
       developer_id: developerId,
       type: input.type,
       intent: input.intent,

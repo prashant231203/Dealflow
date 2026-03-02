@@ -87,6 +87,8 @@ export interface DealConstraints {
   unit?: string
   product_id?: string
   requirements?: string[]
+  trust_score?: number
+  max_latency_ms?: number
   custom?: Record<string, unknown>
 }
 
@@ -117,6 +119,7 @@ export interface DealEvent {
   action: DealAction
   actor: string
   payload: Record<string, unknown>
+  signature_proof?: { signature: string; publicKey: string }
   summary_before?: string
   summary_after?: string
   sequence_number: number
@@ -140,8 +143,15 @@ export interface ComplianceFlag {
   acknowledged_at?: string
 }
 
+export interface DealBriefing {
+  active_constraints: Record<string, any>
+  verifiable_evidence_ids: string[]
+  suggested_next_action: { action: string; reason: string }
+}
+
 export interface DealData {
   id: string
+  version: number
   developer_id: string
   type: DealType
   intent: string
@@ -223,6 +233,8 @@ export interface ActOnDealRequest {
   action: DealAction
   actor: string
   payload: Record<string, unknown>
+  signature?: string
+  publicKey?: string
 }
 
 export interface DealListResponse {

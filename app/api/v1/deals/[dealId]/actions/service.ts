@@ -14,7 +14,19 @@ export async function actOnDeal(
   request: ActOnDealRequest,
 ): Promise<{ deal: DealData; offers: DealOffer[] }> {
   validateActOnDealRequest(request)
-  assertActionAllowed(deal.status, request.action)
+  assertActionAllowed(deal, request.action, request.payload)
+
+  if (['offer', 'counter', 'accept', 'reject'].includes(request.action)) {
+    const { signature, publicKey } = request
+    if (!signature || !publicKey) {
+      throw new ApiError(`A cryptographic signature and publicKey are required to authorize a '${request.action}' action.`, 'UNAUTHORIZED_ACTION', 401)
+    }
+
+    // In production, the client must sign the deterministic JSON representation of the action & payload
+    const { verifyAgentSignature } = await import('../../../../../../lib/auth/crypto')
+    const signedMessage = JSON.stringify({ action: request.action, payload: request.payload })
+    verifyAgentSignature(signedMessage, signature, publicKey)
+  }
 
   const updates: DealData = { ...deal, updated_at: new Date().toISOString() }
   const offerList = [...offers]
