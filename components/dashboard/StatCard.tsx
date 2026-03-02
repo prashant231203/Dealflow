@@ -3,17 +3,19 @@
 import { useState, useEffect } from 'react'
 import { cn } from '@/lib/utils'
 
+import * as Icons from 'lucide-react'
+
 interface StatCardProps {
     label: string
     value: number | string
     trend?: string
     trendValue?: number
-    icon: React.ElementType
+    iconName: keyof typeof Icons
     colorKey: 'active' | 'closed' | 'info' | 'warning'
     isCurrency?: boolean
 }
 
-export function StatCard({ label, value, trend, trendValue, icon: Icon, colorKey, isCurrency }: StatCardProps) {
+export function StatCard({ label, value, trend, trendValue, iconName, colorKey, isCurrency }: StatCardProps) {
     const [displayValue, setDisplayValue] = useState(0)
 
     // Animated counter
@@ -61,7 +63,10 @@ export function StatCard({ label, value, trend, trendValue, icon: Icon, colorKey
                 <h3 className="text-xs font-semibold tracking-[0.08em] uppercase text-text-muted">
                     {label}
                 </h3>
-                <Icon className="w-4 h-4 text-text-muted" />
+                {Icons[iconName] && (() => {
+                    const ResolvedIcon = Icons[iconName] as any
+                    return <ResolvedIcon className="w-4 h-4 text-text-muted" />
+                })()}
             </div>
 
             <div className="flex items-baseline gap-1 mb-2">

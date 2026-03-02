@@ -3,9 +3,7 @@ import { cookies } from 'next/headers'
 import { StatCard } from '@/components/dashboard/StatCard'
 import { DealFeed } from '@/components/dashboard/DealFeed'
 import { OnboardingState } from '@/components/dashboard/OnboardingState'
-import { DealStatusDot } from '@/components/deals/DealStatusDot'
 import { RelativeTime } from '@/components/shared/RelativeTime'
-import { Activity, Layers, Target, Coins } from 'lucide-react'
 import Link from 'next/link'
 
 export default async function DashboardHome() {
@@ -76,26 +74,26 @@ export default async function DashboardHome() {
                 <StatCard
                     label="Active Deals"
                     value={activeCount || 0}
-                    icon={Activity}
+                    iconName="Activity"
                     colorKey="active"
                 />
                 <StatCard
                     label="Closed Today"
                     value={closedTodayCount || 0}
-                    icon={Layers}
+                    iconName="Layers"
                     colorKey="closed"
                 />
                 <StatCard
                     label="Completion Rate"
                     value={`${completionRate}%`}
-                    icon={Target}
+                    iconName="Target"
                     colorKey="info"
                 />
                 <StatCard
                     label="Deal Value (30d)"
                     value={totalValue30d}
                     isCurrency
-                    icon={Coins}
+                    iconName="Coins"
                     colorKey="warning"
                 />
             </div>
