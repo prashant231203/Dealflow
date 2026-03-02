@@ -183,6 +183,20 @@ export interface DealListResponse {
   per_page: number
 }
 
+export interface DealDashboardTotals {
+  deals: number
+  active_deals: number
+  paused_deals: number
+  escalated_deals: number
+  closed_deals: number
+  critical_flags: number
+}
+
+export interface DealDashboardResponse {
+  totals: DealDashboardTotals
+  recent_deals: DealData[]
+}
+
 export interface DealFilters {
   status?: DealStatus
   type?: DealType
