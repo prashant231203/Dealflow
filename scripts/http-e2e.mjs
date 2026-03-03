@@ -1,10 +1,10 @@
 import http from 'node:http'
 import assert from 'node:assert/strict'
-import { seedMemoryStore, memoryStore } from '../dist/lib/store/in-memory.js'
-import { GET as getDeals, POST as postDeals } from '../dist/app/api/v1/deals/route.js'
-import { GET as getDeal } from '../dist/app/api/v1/deals/[dealId]/route.js'
-import { POST as postAction } from '../dist/app/api/v1/deals/[dealId]/actions/route.js'
-import { GET as getDashboard } from '../dist/app/api/v1/dashboard/route.js'
+import { seedMemoryStore, memoryStore } from '../lib/store/in-memory.ts'
+import { GET as getDeals, POST as postDeals } from '../app/api/v1/deals/route.ts'
+import { GET as getDeal } from '../app/api/v1/deals/[dealId]/route.ts'
+import { POST as postAction } from '../app/api/v1/deals/[dealId]/actions/route.ts'
+import { GET as getDashboard } from '../app/api/v1/dashboard/route.ts'
 
 const { apiKey } = seedMemoryStore()
 const port = 4010

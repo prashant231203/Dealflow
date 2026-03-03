@@ -2,101 +2,86 @@
 
 import { usePathname, useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { RefreshCw, ArrowLeft } from 'lucide-react'
-import { useState, useEffect } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import { createBrowserClient } from '@supabase/ssr'
 
-export function Topbar() {
+const NAV_ITEMS = [
+    { name: 'Overview', href: '/dashboard' },
+    { name: 'Deals', href: '/dashboard/deals' },
+    { name: 'Analytics', href: '/dashboard/analytics' },
+    { name: 'Webhooks', href: '/dashboard/webhooks' },
+    { name: 'Keys', href: '/dashboard/keys' },
+]
+
+export function Topbar({ onOpenCommandPalette }: { onOpenCommandPalette: () => void }) {
     const pathname = usePathname()
     const router = useRouter()
-    const [isRefreshing, setIsRefreshing] = useState(false)
+    const [userEmail, setUserEmail] = useState<string | null>(null)
 
-    // Derive breadcrumbs from URL
-    const segments = pathname.split('/').filter(Boolean)
-    // Example path: /dashboard/deals/deal_123
-    // segments = ['dashboard', 'deals', 'deal_123']
+    const supabase = useMemo(() => createBrowserClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    ), [])
 
-    const handleRefresh = () => {
-        setIsRefreshing(true)
-        router.refresh()
-        setTimeout(() => setIsRefreshing(false), 500)
-    }
+    useEffect(() => {
+        supabase.auth.getUser().then(({ data }) => {
+            setUserEmail(data.user?.email || null)
+        })
+    }, [supabase.auth])
 
-    // Hide topbar completely if exactly at `/dashboard` (home) to give more room?
-    // Actually, UI specs said Topbar is generic throughout, except the Deal Detail has breadcrumbs and "Back".
-    // Let's implement dynamic mappings.
+    const initials = (userEmail || 'D').trim().charAt(0).toUpperCase()
 
-    const isDeepView = segments.length > 2
-
-    const formatSegment = (str: string, index: number) => {
-        if (str === 'dashboard') return 'Dashboard'
-        if (str === 'deals') return 'Deals'
-        if (str === 'analytics') return 'Analytics'
-        if (str === 'webhooks') return 'Webhooks'
-        if (str === 'keys') return 'API Keys'
-
-        // UUID or Deal ID segment
-        if (index === 2) {
-            if (str.startsWith('deal_')) {
-                return str.slice(0, 14) + '...'
-            }
-            return str
-        }
-        return str.charAt(0).toUpperCase() + str.slice(1)
+    const isActive = (href: string) => {
+        if (href === '/dashboard') return pathname === '/dashboard'
+        return pathname.startsWith(href)
     }
 
     return (
-        <header className="h-14 min-h-[56px] border-b border-border-dim bg-bg-void/50 backdrop-blur-md px-4 md:px-8 flex items-center justify-between sticky top-0 z-30">
+        <header className="sticky top-0 z-30 h-12 min-h-12 border-b border-border-dim bg-bg-void px-3 md:px-6">
+            <div className="h-full grid grid-cols-[1fr_auto_1fr] items-center gap-3">
+                <button
+                    onClick={() => router.push('/dashboard')}
+                    className="justify-self-start inline-flex items-center gap-2 text-left"
+                >
+                    <span className="h-1.5 w-1.5 rounded-full bg-electric animate-status-pulse" />
+                    <span className="text-[13px] font-semibold tracking-[0.08em] text-text-primary uppercase">
+                        DEALFLOW
+                    </span>
+                </button>
 
-            {/* Left side: Back button (if deep) + Breadcrumbs */}
-            <div className="flex items-center gap-4">
-                {isDeepView && (
+                <nav className="justify-self-center hidden md:flex items-center gap-1.5">
+                    {NAV_ITEMS.map((item) => (
+                        <Link
+                            key={item.href}
+                            href={item.href}
+                            className={`h-8 px-3 rounded-full border text-[13px] inline-flex items-center ${isActive(item.href)
+                                ? 'bg-overlay border-border-bright text-text-primary'
+                                : 'bg-transparent border-transparent text-text-secondary hover:text-text-primary hover:border-border-dim'
+                                }`}
+                        >
+                            {item.name}
+                        </Link>
+                    ))}
+                </nav>
+
+                <div className="justify-self-end flex items-center gap-2">
                     <button
-                        onClick={() => router.back()}
-                        className="hidden md:flex items-center gap-1.5 text-sm text-text-secondary hover:text-text-primary transition-colors focus-visible:outline-electric px-2 py-1 -ml-2 rounded-md"
+                        onClick={onOpenCommandPalette}
+                        className="h-8 px-2.5 rounded-md border border-border-bright text-electric text-xs font-medium hover:bg-electric-dim"
+                        aria-label="Open command palette"
                     >
-                        <ArrowLeft className="w-4 h-4" />
-                        <span className="font-medium mt-0.5">Back</span>
+                        ⌘K
                     </button>
-                )}
 
-                <div className="flex items-center gap-2 text-xs md:text-sm">
-                    {segments.map((segment, i) => {
-                        const isLast = i === segments.length - 1
-                        const href = '/' + segments.slice(0, i + 1).join('/')
-
-                        return (
-                            <div key={href} className="flex items-center gap-2">
-                                {i > 0 && <span className="text-text-muted select-none">/</span>}
-                                {isLast ? (
-                                    <span className={`font-mono text-text-muted ${i === 2 && segment.startsWith('deal_') ? 'text-xs' : ''}`}>
-                                        {formatSegment(segment, i)}
-                                    </span>
-                                ) : (
-                                    <Link
-                                        href={href}
-                                        className="text-text-secondary hover:text-text-primary transition-colors hover:underline underline-offset-4"
-                                    >
-                                        {formatSegment(segment, i)}
-                                    </Link>
-                                )}
-                            </div>
-                        )
-                    })}
+                    <button
+                        onClick={() => router.push('/dashboard/keys')}
+                        className="h-8 w-8 rounded-full border border-border-bright bg-overlay text-electric text-xs font-mono"
+                        aria-label="Account"
+                    >
+                        {initials}
+                    </button>
                 </div>
             </div>
-
-            {/* Right side: Global Refresh */}
-            <div>
-                <button
-                    onClick={handleRefresh}
-                    className="flex items-center gap-2 text-xs md:text-sm text-text-secondary border border-border-dim rounded-md px-3 py-1.5 hover:bg-elevated hover:text-text-primary transition-colors focus-visible:outline-electric"
-                    title="Refresh current data (R)"
-                >
-                    <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin text-electric' : ''}`} />
-                    <span className="hidden md:inline font-medium">Refresh</span>
-                </button>
-            </div>
-
         </header>
     )
 }

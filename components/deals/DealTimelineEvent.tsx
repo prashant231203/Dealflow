@@ -3,12 +3,14 @@
 import { useState } from 'react'
 import { DealEvent } from '@/types'
 import { RelativeTime } from '@/components/shared/RelativeTime'
-import { JsonViewer } from '@/components/shared/JsonViewer'
 import { MessageSquare, FileText, CheckCircle2, XCircle, PauseCircle, PlayCircle, AlertTriangle, ArrowRightLeft, ShieldBan, Bot, User, Clock, ChevronDown, ChevronRight } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 export function DealTimelineEvent({ event, isLast, isLatest, style }: { event: DealEvent; isLast: boolean; isLatest?: boolean; style?: React.CSSProperties }) {
     const [showAiSnapshot, setShowAiSnapshot] = useState(false)
+    const payload = event.payload || {}
+    const finalValue = payload.final_value
+    const reason = payload.reason
 
     // Mapping action to styles and icons
     const getActionConfig = (action: string) => {
@@ -38,6 +40,88 @@ export function DealTimelineEvent({ event, isLast, isLatest, style }: { event: D
     const isAgent = event.actor.toLowerCase().includes('agent')
     const ActorIcon = isAgent ? Bot : User
 
+    const money = (value: unknown) => {
+        if (typeof value !== 'number' && typeof value !== 'string') return null
+        const num = Number(value)
+        if (isNaN(num)) return null
+        return `$${num.toLocaleString()}`
+    }
+
+    const renderContent = () => {
+        if (event.action === 'offer' || event.action === 'counter') {
+            return (
+                <div className="space-y-2">
+                    <div className="text-[18px] font-mono text-text-primary">
+                        {money(payload.price) || 'Offer updated'}
+                    </div>
+                    <div className="text-xs text-text-secondary font-mono">
+                        {payload.quantity ? `${String(payload.quantity)} ${String(payload.unit || '')}` : 'quantity not specified'}
+                    </div>
+                    {Array.isArray(payload.conditions) && payload.conditions.length > 0 && (
+                        <div className="flex flex-wrap gap-1.5">
+                            {payload.conditions.map((condition, idx) => (
+                                <span key={idx} className="rounded-full border border-border-dim bg-elevated px-2 py-0.5 text-[11px] text-text-secondary">
+                                    {String(condition)}
+                                </span>
+                            ))}
+                        </div>
+                    )}
+                </div>
+            )
+        }
+
+        if (event.action === 'accept') {
+            return (
+                <div className="text-sm">
+                    <span className="text-positive">✓ Offer accepted</span>
+                    {Boolean(finalValue) && <span className="ml-2 font-mono text-text-primary">at {money(finalValue)}</span>}
+                </div>
+            )
+        }
+
+        if (event.action === 'reject') {
+            return (
+                <div className="text-sm space-y-1">
+                    <div className="text-danger">✗ Offer rejected</div>
+                    {Boolean(reason) && <div className="text-text-secondary italic">{String(reason)}</div>}
+                </div>
+            )
+        }
+
+        if (event.action === 'escalate') {
+            return (
+                <div className="text-sm space-y-1">
+                    <div className="text-text-primary">→ Sent to {String(payload.to || payload.agent || 'reviewer')}</div>
+                    {Boolean(reason) && <div className="text-text-secondary italic">{String(reason)}</div>}
+                </div>
+            )
+        }
+
+        if (event.action === 'note') {
+            return (
+                <blockquote className="border-l border-border-bright pl-3 text-sm italic text-text-secondary">
+                    {String(payload.note || payload.message || 'Note added')}
+                </blockquote>
+            )
+        }
+
+        if (event.action === 'close') {
+            return (
+                <div className="text-base text-positive">
+                    ✓ Deal completed {finalValue ? `at ${money(finalValue)}` : ''}
+                </div>
+            )
+        }
+
+        return (
+            <div className="text-sm text-text-secondary">
+                {Object.keys(payload).length > 0
+                    ? JSON.stringify(payload)
+                    : 'No additional payload'}
+            </div>
+        )
+    }
+
     return (
         <div className="relative pl-8 pt-4 pb-8 group animate-fade-up" style={{ animationFillMode: 'both', ...style }}>
             {/* Chronological line */}
@@ -51,7 +135,7 @@ export function DealTimelineEvent({ event, isLast, isLatest, style }: { event: D
             </div>
 
             {/* Content wrapper */}
-            <div className="bg-surface border border-border-default hover:border-border-bright rounded-xl p-4 transition-colors">
+            <div className={cn("bg-surface border border-border-default hover:border-border-bright rounded-xl p-4 transition-colors", isLatest && 'bg-overlay/60')}>
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3">
 
                     <div className="flex items-center gap-3">
@@ -59,8 +143,8 @@ export function DealTimelineEvent({ event, isLast, isLatest, style }: { event: D
                             {event.action.replace('_', ' ')}
                         </span>
                         {isLatest && (
-                            <span className="text-[10px] uppercase font-bold tracking-widest text-electric bg-electric/20 px-1.5 py-0.5 rounded animate-pulse">
-                                NEW
+                            <span className="text-[10px] uppercase font-bold tracking-widest text-electric bg-electric/20 px-1.5 py-0.5 rounded">
+                                LATEST
                             </span>
                         )}
                         <div className="flex items-center gap-1.5 text-xs text-text-secondary">
@@ -77,8 +161,7 @@ export function DealTimelineEvent({ event, isLast, isLatest, style }: { event: D
 
                 </div>
 
-                {/* Payload */}
-                <JsonViewer data={event.payload} className="mb-3" />
+                {renderContent()}
 
                 {/* AI Snapshot Collapsible */}
                 {event.summary_after && event.summary_after !== event.summary_before && (
@@ -88,7 +171,7 @@ export function DealTimelineEvent({ event, isLast, isLatest, style }: { event: D
                             onClick={() => setShowAiSnapshot(!showAiSnapshot)}
                         >
                             {showAiSnapshot ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
-                            <span className="font-medium tracking-wide uppercase">AI Snapshot Offset</span>
+                            <span className="font-medium tracking-wide">AI snapshot at this moment</span>
                         </button>
 
                         {showAiSnapshot && (

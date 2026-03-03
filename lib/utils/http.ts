@@ -24,6 +24,7 @@ export function handleRouteError(error: unknown): Response {
     return errorResponse(error.message, 'INVALID_TRANSITION', 400)
   }
 
+  console.error('[API Error]', error)
   return errorResponse('Internal server error', 'SERVER_ERROR', 500)
 }
 

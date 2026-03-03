@@ -17,11 +17,17 @@ export default function RootLayout({
             lang="en"
             className="dark"
             style={{
-                ['--font-syne' as any]: 'Avenir Next, Segoe UI, Helvetica Neue, Arial, sans-serif',
-                ['--font-dm-sans' as any]: 'Inter, Segoe UI, Helvetica Neue, Arial, sans-serif',
-                ['--font-berkeley-mono' as any]: 'JetBrains Mono, Fira Code, Consolas, monospace',
+                ['--font-syne' as any]: 'Geist, Segoe UI, Helvetica Neue, Arial, sans-serif',
+                ['--font-dm-sans' as any]: 'Geist, Segoe UI, Helvetica Neue, Arial, sans-serif',
+                ['--font-berkeley-mono' as any]: 'Geist Mono, JetBrains Mono, Fira Code, Consolas, monospace',
             }}
         >
+            <head>
+                <link
+                    href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Geist+Mono:wght@400;500&display=swap"
+                    rel="stylesheet"
+                />
+            </head>
             <body className="font-sans antialiased">
                 <ToastProvider>
                     {children}

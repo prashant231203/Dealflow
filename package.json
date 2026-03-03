@@ -8,14 +8,16 @@
     "build": "next build",
     "start": "next start",
     "typecheck": "tsc --noEmit",
-    "test": "tsc -p tsconfig.json && node tests/domain-check.mjs",
-    "test:http": "tsc -p tsconfig.json && node scripts/http-e2e.mjs"
+    "test": "npx tsx tests/domain-check.mjs",
+    "test:http": "npx tsx scripts/http-e2e.mjs"
   },
   "devDependencies": {
     "autoprefixer": "^10.4.27",
     "groq-sdk": "^0.37.0",
+    "pg": "^8.19.0",
     "postcss": "^8.5.6",
     "tailwindcss": "^3.4.19",
+    "tsx": "^4.21.0",
     "typescript": "^5.9.3"
   },
   "dependencies": {
@@ -24,8 +26,11 @@
     "@supabase/ssr": "^0.8.0",
     "@tailwindcss/postcss": "^4.2.1",
     "clsx": "^2.1.1",
+    "cmdk": "^1.1.1",
+    "dotenv": "^17.3.1",
     "lucide-react": "^0.575.0",
     "next": "^16.1.6",
+    "openai": "^6.25.0",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
     "recharts": "^3.7.0",

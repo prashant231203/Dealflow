@@ -1,6 +1,5 @@
-import { createServerClient, type CookieOptions } from '@supabase/ssr'
+import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
-import { StatCard } from '@/components/dashboard/StatCard'
 import { DealFeed } from '@/components/dashboard/DealFeed'
 import { OnboardingState } from '@/components/dashboard/OnboardingState'
 import { RelativeTime } from '@/components/shared/RelativeTime'
@@ -34,22 +33,22 @@ export default async function DashboardHome() {
 
     const [
         { count: totalDeals },
-        { data: activeDealsRaw },
         { count: activeCount },
         { count: closedTodayCount },
         { count: closedYesterdayCount },
-        { data: recentClosedData },
-        { data: allClosedData }, // 30 day completion & value
-        { data: previousClosedData } // 31-60 day completion & value
+        { data: allClosedData },
+        { data: previousClosedData },
+        { data: needsAttentionData },
+        { data: recentEventsRaw }
     ] = await Promise.all([
         supabase.from('deals').select('*', { count: 'exact', head: true }).eq('developer_id', developerId),
-        supabase.from('deals').select('*').eq('developer_id', developerId).in('status', ['active', 'escalated']).order('updated_at', { ascending: false }).limit(20),
         supabase.from('deals').select('*', { count: 'exact', head: true }).eq('developer_id', developerId).in('status', ['active', 'escalated']),
         supabase.from('deals').select('*', { count: 'exact', head: true }).eq('developer_id', developerId).in('outcome', ['completed']).gte('closed_at', twentyFourHoursAgo),
         supabase.from('deals').select('*', { count: 'exact', head: true }).eq('developer_id', developerId).in('outcome', ['completed']).gte('closed_at', fortyEightHoursAgo).lt('closed_at', twentyFourHoursAgo),
-        supabase.from('deals').select('id, intent, outcome, final_value, closed_at').eq('developer_id', developerId).in('status', ['closed', 'expired', 'cancelled']).order('closed_at', { ascending: false, nullsFirst: false }).limit(5),
         supabase.from('deals').select('outcome, final_value').eq('developer_id', developerId).in('status', ['closed', 'expired', 'cancelled']).gte('closed_at', thirtyDaysAgo),
-        supabase.from('deals').select('outcome, final_value').eq('developer_id', developerId).in('status', ['closed', 'expired', 'cancelled']).gte('closed_at', sixtyDaysAgo).lt('closed_at', thirtyDaysAgo)
+        supabase.from('deals').select('outcome, final_value').eq('developer_id', developerId).in('status', ['closed', 'expired', 'cancelled']).gte('closed_at', sixtyDaysAgo).lt('closed_at', thirtyDaysAgo),
+        supabase.from('deals').select('id, intent, status, compliance_flags, updated_at').eq('developer_id', developerId).order('updated_at', { ascending: false }).limit(30),
+        supabase.from('deal_events').select('id, deal_id, actor, action, payload, created_at, deals!inner(intent, developer_id)').eq('deals.developer_id', developerId).order('created_at', { ascending: false }).limit(50)
     ])
 
     // Total overarching condition
@@ -94,98 +93,98 @@ export default async function DashboardHome() {
     const completionTrend = calculateTrend(completionRate, prevCompletionRate, 'last month')
     const valueTrend = calculateTrend(totalValue30d, prevTotalValue, 'last month')
 
+    const activityEvents = (recentEventsRaw || []).map((evt: any) => {
+        const payload = evt.payload || {}
+        const candidateValue = payload.price ?? payload.final_value
+        const value = typeof candidateValue === 'number'
+            ? candidateValue
+            : typeof candidateValue === 'string' && !isNaN(Number(candidateValue))
+                ? Number(candidateValue)
+                : null
+
+        return {
+            id: evt.id,
+            deal_id: evt.deal_id,
+            actor: evt.actor || 'system',
+            action: evt.action,
+            created_at: evt.created_at,
+            intent: evt.deals?.intent || 'Unknown deal',
+            value,
+            statusColor: 'default' as const,
+        }
+    })
+
+    const needsAttention = (needsAttentionData || []).filter((deal: any) => {
+        const hasCriticalFlags = Array.isArray(deal.compliance_flags)
+            ? deal.compliance_flags.some((f: any) => f?.severity === 'critical')
+            : false
+        return deal.status === 'escalated' || hasCriticalFlags
+    }).slice(0, 5)
+
     return (
-        <div className="animate-fade-up max-w-7xl mx-auto space-y-8">
-            {/* Header */}
-            <div>
-                <h1 className="font-display text-2xl text-text-primary mb-1">Overview</h1>
-                <p className="text-text-secondary text-sm">Monitor your agent's active deals and recent performance.</p>
-            </div>
-
-            {/* Stats Row */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                <StatCard
-                    label="Active Deals"
-                    value={activeCount || 0}
-                    iconName="Activity"
-                    colorKey="active"
-                />
-                <StatCard
-                    label="Closed Today"
-                    value={closedTodayCount || 0}
-                    trend={closedTodayTrend}
-                    iconName="Layers"
-                    colorKey="closed"
-                />
-                <StatCard
-                    label="Completion Rate"
-                    value={completionRate}
-                    trend={completionTrend}
-                    iconName="Target"
-                    colorKey="info"
-                />
-                <StatCard
-                    label="Deal Value (30d)"
-                    value={totalValue30d}
-                    trend={valueTrend}
-                    isCurrency
-                    iconName="Coins"
-                    colorKey="warning"
-                />
-            </div>
-
-            {/* Main Content Area */}
-            <div className="grid lg:grid-cols-3 gap-8 items-start">
-
-                {/* Deal Feed (Left 2/3) */}
-                <div className="lg:col-span-2 space-y-4">
-                    <div className="flex items-center justify-between">
-                        <h2 className="font-display text-lg">Live Active Deals</h2>
-                        <Link href="/dashboard/deals" className="text-sm text-electric hover:underline underline-offset-4">
-                            View all deals →
-                        </Link>
-                    </div>
-                    <DealFeed initialDeals={activeDealsRaw || []} developerId={developerId} />
+        <div className="animate-fade-up max-w-[1400px] mx-auto">
+            <div className="grid grid-cols-1 xl:grid-cols-[65%_35%] gap-5 items-start">
+                <div>
+                    <DealFeed initialEvents={activityEvents} developerId={developerId} initialActiveCount={activeCount || 0} />
                 </div>
 
-                {/* Recent Closures (Right 1/3) */}
-                <div className="space-y-4">
-                    <h2 className="font-display text-lg">Recent Closures</h2>
-                    <div className="bg-surface border border-border-default rounded-xl overflow-hidden p-1">
-                        {recentClosedData && recentClosedData.length > 0 ? (
-                            recentClosedData.map((deal) => (
-                                <div key={deal.id} className="p-4 hover:bg-elevated transition-colors border-b border-border-dim last:border-0 rounded-lg group">
-                                    <div className="flex items-start justify-between mb-2">
-                                        <span className="font-medium text-sm text-text-primary capitalize truncate pr-4">
-                                            {deal.intent}
-                                        </span>
-                                        <span className={`text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded ${deal.outcome === 'completed' ? 'bg-positive/10 text-positive border border-positive/20' :
-                                            deal.outcome === 'cancelled' || deal.outcome === 'failed' ? 'bg-danger/10 text-danger border border-danger/20' :
-                                                'bg-overlay text-text-secondary border border-border-dim'
-                                            }`}>
-                                            {deal.outcome || 'Closed'}
-                                        </span>
-                                    </div>
-                                    <div className="flex items-center justify-between mt-3 text-xs">
-                                        <span className="text-text-muted">
-                                            <RelativeTime timestamp={deal.closed_at || new Date().toISOString()} />
-                                        </span>
-                                        {deal.final_value && (
-                                            <span className="font-mono text-positive font-medium">
-                                                +${deal.final_value.toLocaleString()}
-                                            </span>
-                                        )}
-                                    </div>
-                                </div>
-                            ))
-                        ) : (
-                            <div className="p-8 text-center text-sm text-text-secondary">
-                                No closed deals recently.
+                <aside className="space-y-4">
+                    <section className="rounded-xl border border-border-default bg-surface p-4">
+                        <div className="grid grid-cols-2 gap-3 text-center">
+                            <div className="rounded-lg border border-border-dim bg-elevated p-3">
+                                <div className="text-[11px] uppercase tracking-[0.1em] text-text-muted">Active Deals</div>
+                                <div className="mt-2 font-mono text-2xl text-text-primary">{activeCount || 0}</div>
+                            </div>
+                            <div className="rounded-lg border border-border-dim bg-elevated p-3">
+                                <div className="text-[11px] uppercase tracking-[0.1em] text-text-muted">Closed Today</div>
+                                <div className="mt-2 font-mono text-2xl text-text-primary">{closedTodayCount || 0}</div>
+                            </div>
+                            <div className="rounded-lg border border-border-dim bg-elevated p-3">
+                                <div className="text-[11px] uppercase tracking-[0.1em] text-text-muted">30D Rate</div>
+                                <div className="mt-2 font-mono text-2xl text-text-primary">{completionRate}%</div>
+                            </div>
+                            <div className="rounded-lg border border-border-dim bg-elevated p-3">
+                                <div className="text-[11px] uppercase tracking-[0.1em] text-text-muted">30D Value</div>
+                                <div className="mt-2 font-mono text-2xl text-text-primary">${totalValue30d.toLocaleString()}</div>
+                            </div>
+                        </div>
+                        {(closedTodayTrend || completionTrend || valueTrend) && (
+                            <div className="mt-3 border-t border-border-dim pt-3 text-[11px] text-text-muted space-y-1">
+                                {closedTodayTrend && <div>{closedTodayTrend}</div>}
+                                {completionTrend && <div>{completionTrend}</div>}
+                                {valueTrend && <div>{valueTrend}</div>}
                             </div>
                         )}
-                    </div>
-                </div>
+                    </section>
 
+                    <section className="rounded-xl border border-border-default bg-surface p-4">
+                        <h3 className="mb-3 text-xs font-semibold uppercase tracking-[0.12em] text-text-secondary">NEEDS ATTENTION</h3>
+                        {needsAttention.length === 0 ? (
+                            <div className="rounded-lg border border-positive/30 bg-positive-dim px-3 py-2 text-sm text-positive">✓ All deals on track</div>
+                        ) : (
+                            <div className="space-y-2">
+                                {needsAttention.map((deal: any) => (
+                                    <Link key={deal.id} href={`/dashboard/deals/${deal.id}`} className="block rounded-lg border border-border-dim bg-elevated px-3 py-2 hover:border-border-bright hover:bg-overlay">
+                                        <div className="truncate text-sm text-text-primary">{deal.intent}</div>
+                                        <div className="mt-1 flex items-center justify-between text-[11px] text-text-muted font-mono">
+                                            <span className="uppercase">{deal.status}</span>
+                                            <RelativeTime timestamp={deal.updated_at} />
+                                        </div>
+                                    </Link>
+                                ))}
+                            </div>
+                        )}
+                    </section>
+
+                    <section className="rounded-xl border border-border-default bg-surface p-4">
+                        <h3 className="mb-3 text-xs font-semibold uppercase tracking-[0.12em] text-text-secondary">Quick Actions</h3>
+                        <div className="flex flex-wrap gap-2">
+                            <Link href="/dashboard/deals?create=1" className="rounded-full border border-electric bg-electric-dim px-3 py-1.5 text-xs font-medium text-electric hover:bg-electric hover:text-black">+ New Deal</Link>
+                            <Link href="/dashboard/keys" className="rounded-full border border-border-dim px-3 py-1.5 text-xs text-text-secondary hover:border-border-bright hover:text-text-primary">API Keys</Link>
+                            <Link href="/dashboard/webhooks" className="rounded-full border border-border-dim px-3 py-1.5 text-xs text-text-secondary hover:border-border-bright hover:text-text-primary">Webhooks</Link>
+                        </div>
+                    </section>
+                </aside>
             </div>
         </div>
     )

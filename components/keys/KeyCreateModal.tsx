@@ -13,8 +13,10 @@ interface KeyCreateModalProps {
 
 export function KeyCreateModal({ isOpen, onClose, onSuccess }: KeyCreateModalProps) {
     const [name, setName] = useState('')
+    const [environment, setEnvironment] = useState<'live' | 'test'>('live')
     const [isLoading, setIsLoading] = useState(false)
     const [createdKey, setCreatedKey] = useState<string | null>(null)
+    const [confirmedSaved, setConfirmedSaved] = useState(false)
     const [error, setError] = useState<string | null>(null)
 
     if (!isOpen) return null
@@ -52,6 +54,8 @@ export function KeyCreateModal({ isOpen, onClose, onSuccess }: KeyCreateModalPro
     const handleClose = () => {
         setCreatedKey(null)
         setName('')
+        setEnvironment('live')
+        setConfirmedSaved(false)
         setError(null)
         onClose()
     }
@@ -84,16 +88,36 @@ export function KeyCreateModal({ isOpen, onClose, onSuccess }: KeyCreateModalPro
                             </div>
 
                             <div className="p-6 space-y-4">
-                                <div>
+                                <div className="space-y-2">
                                     <label className="block text-sm font-medium text-text-secondary mb-1">Key Name</label>
                                     <input
                                         type="text"
                                         value={name}
                                         onChange={(e) => setName(e.target.value)}
                                         placeholder="e.g. Production Agent"
-                                        className="w-full bg-elevated border border-border-dim rounded-md px-3 py-2 text-text-primary focus:outline-none focus:border-border-bright focus:ring-1 focus:ring-electric transition-colors"
+                                        className="w-full bg-transparent border-0 border-b border-border-dim px-0 py-2 text-text-primary focus:outline-none focus:border-electric transition-colors"
                                         autoFocus
                                     />
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-medium text-text-secondary mb-2">Environment</label>
+                                    <div className="inline-flex rounded-full border border-border-dim p-1 gap-1">
+                                        <button
+                                            type="button"
+                                            onClick={() => setEnvironment('live')}
+                                            className={`px-3 py-1 text-xs rounded-full ${environment === 'live' ? 'bg-overlay border border-border-bright text-text-primary' : 'text-text-secondary'}`}
+                                        >
+                                            Live
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setEnvironment('test')}
+                                            className={`px-3 py-1 text-xs rounded-full ${environment === 'test' ? 'bg-overlay border border-border-bright text-text-primary' : 'text-text-secondary'}`}
+                                        >
+                                            Test
+                                        </button>
+                                    </div>
                                 </div>
 
                                 {error && (
@@ -147,15 +171,22 @@ export function KeyCreateModal({ isOpen, onClose, onSuccess }: KeyCreateModalPro
                                     <CopyButton value={createdKey} size="md" className="shrink-0" />
                                 </div>
 
-                                <div className="text-xs text-text-secondary text-center mb-2">
-                                    Make sure you've copied this before closing.
-                                </div>
+                                <label className="flex items-start gap-2 text-xs text-text-secondary mb-2">
+                                    <input
+                                        type="checkbox"
+                                        checked={confirmedSaved}
+                                        onChange={(e) => setConfirmedSaved(e.target.checked)}
+                                        className="mt-0.5"
+                                    />
+                                    I understand this key is shown once and I have saved it securely.
+                                </label>
                             </div>
 
                             <div className="p-4 border-t border-border-dim bg-overlay/30">
                                 <button
                                     onClick={handleClose}
-                                    className="w-full py-2.5 bg-electric text-black font-bold text-sm rounded-md hover:bg-white transition-colors"
+                                    disabled={!confirmedSaved}
+                                    className="w-full py-2.5 bg-electric text-black font-bold text-sm rounded-md hover:bg-white transition-colors disabled:opacity-50"
                                 >
                                     I have saved my API key
                                 </button>

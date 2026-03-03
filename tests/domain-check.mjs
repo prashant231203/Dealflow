@@ -1,11 +1,24 @@
 import assert from 'node:assert/strict'
-import { generateApiKey, verifyApiKey } from '../dist/lib/auth/api-keys.js'
-import { actOnDeal } from '../dist/app/api/v1/deals/[dealId]/actions/service.js'
-import { createDeal, listDeals } from '../dist/app/api/v1/deals/service.js'
-import { computeBestOffer } from '../dist/lib/intelligence/offers.js'
-import { checkCompliance } from '../dist/lib/intelligence/compliance.js'
-import { isActionAllowed } from '../dist/lib/deals/state-machine.js'
-import { memoryStore } from '../dist/lib/store/in-memory.js'
+import crypto from 'node:crypto'
+import { generateApiKey, verifyApiKey } from '../lib/auth/api-keys.ts'
+import { actOnDeal } from '../app/api/v1/deals/[dealId]/actions/service.ts'
+import { createDeal, listDeals } from '../app/api/v1/deals/service.ts'
+import { computeBestOffer } from '../lib/intelligence/offers.ts'
+import { checkCompliance } from '../lib/intelligence/compliance.ts'
+import { isActionAllowed } from '../lib/deals/state-machine.ts'
+import { memoryStore } from '../lib/store/in-memory.ts'
+
+const { privateKey, publicKey } = crypto.generateKeyPairSync('ed25519')
+const publicKeyHex = publicKey.export({ format: 'der', type: 'spki' }).subarray(-32).toString('hex')
+
+function signAction(action, payload) {
+  const signedMessage = JSON.stringify({ action, payload })
+  const signature = crypto.sign(null, Buffer.from(signedMessage), privateKey)
+  return {
+    signature: signature.toString('hex'),
+    publicKey: publicKeyHex,
+  }
+}
 
 assert.equal(isActionAllowed('active', 'pause'), true)
 assert.equal(isActionAllowed('closed', 'offer'), false)
@@ -23,11 +36,16 @@ assert.equal(compliance.some((flag) => flag.type === 'policy_violation' && flag.
 const afterOffer = await actOnDeal(
   baseDeal,
   [],
-  { action: 'offer', actor: 'buyer-agent', payload: { price: 450, currency: 'USD', conditions: ['ISO_9001'] } },
+  {
+    action: 'offer',
+    actor: 'buyer-agent',
+    payload: { price: 450, currency: 'USD', conditions: ['ISO_9001'] },
+    ...signAction('offer', { price: 450, currency: 'USD', conditions: ['ISO_9001'] }),
+  },
 )
 assert.equal(afterOffer.deal.offers?.length, 1)
 memoryStore.offers = afterOffer.offers
-const best = computeBestOffer(baseDeal.id, baseDeal.constraints, 'negotiation')
+const best = computeBestOffer(baseDeal.id, baseDeal.constraints, 'negotiation', afterOffer.offers)
 assert.equal(best?.price, 450)
 
 const listed = listDeals([afterOffer.deal], { status: 'active', tags: 'pilot', search: '100 units' }, 1, 20)
@@ -39,6 +57,7 @@ try {
     action: 'accept',
     actor: 'buyer-agent',
     payload: { offer_id: 'off_missing' },
+    ...signAction('accept', { offer_id: 'off_missing' }),
   })
 } catch (error) {
   offerNotFoundRaised = error.code === 'OFFER_NOT_FOUND'

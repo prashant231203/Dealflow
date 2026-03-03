@@ -1,225 +1,179 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { createBrowserClient } from '@supabase/ssr'
-import { DealData } from '@/types'
-import { RelativeTime } from '../shared/RelativeTime'
-import { DealStatusDot } from '../deals/DealStatusDot'
-import { CopyButton } from '../shared/CopyButton'
-import { EmptyState } from '../shared/EmptyState'
-import { Inbox } from 'lucide-react'
-import { useRouter } from 'next/navigation'
+import { RelativeTime } from '@/components/shared/RelativeTime'
 
-interface DealFeedProps {
-    initialDeals: DealData[]
-    developerId: string
-    initialActiveCount?: number
+type ActivityEvent = {
+    id: string
+    deal_id: string
+    actor: string
+    action: string
+    created_at: string
+    intent: string
+    value?: number | null
+    statusColor: 'positive' | 'warning' | 'danger' | 'default' | 'acid'
 }
 
-export function DealFeed({ initialDeals, developerId, initialActiveCount = 0 }: DealFeedProps) {
-    const [deals, setDeals] = useState<DealData[]>(initialDeals)
-    const [highlightedId, setHighlightedId] = useState<string | null>(null)
-    const [newDealId, setNewDealId] = useState<string | null>(null)
-    const [fadingOutId, setFadingOutId] = useState<string | null>(null)
-    const [realtimeConnected, setRealtimeConnected] = useState(false)
+interface DealFeedProps {
+    initialEvents: ActivityEvent[]
+    developerId: string
+    initialActiveCount: number
+}
+
+function colorByAction(action: string): ActivityEvent['statusColor'] {
+    if (action === 'accept' || action === 'close' || action === 'completed') return 'positive'
+    if (action === 'reject' || action === 'cancel' || action === 'flag') return 'danger'
+    if (action === 'escalate' || action === 'pause') return 'warning'
+    if (action === 'offer' || action === 'counter') return 'acid'
+    return 'default'
+}
+
+function extractValue(payload?: Record<string, unknown>) {
+    if (!payload) return null
+    const candidate = payload.price ?? payload.final_value
+    if (typeof candidate === 'number') return candidate
+    if (typeof candidate === 'string' && !Number.isNaN(Number(candidate))) return Number(candidate)
+    return null
+}
+
+function actionText(action: string) {
+    switch (action) {
+        case 'offer':
+            return 'made an offer of'
+        case 'counter':
+            return 'countered with'
+        case 'accept':
+            return 'accepted an offer at'
+        case 'reject':
+            return 'rejected an offer'
+        case 'escalate':
+            return 'escalated the deal'
+        case 'close':
+            return 'closed the deal at'
+        default:
+            return action.replace(/_/g, ' ')
+    }
+}
+
+export function DealFeed({ initialEvents, developerId, initialActiveCount }: DealFeedProps) {
+    const [events, setEvents] = useState<ActivityEvent[]>(initialEvents)
     const [activeCount, setActiveCount] = useState(initialActiveCount)
 
-    const router = useRouter()
-
-    const supabase = createBrowserClient(
+    const supabase = useMemo(() => createBrowserClient(
         process.env.NEXT_PUBLIC_SUPABASE_URL!,
         process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-    )
+    ), [])
 
     useEffect(() => {
-        const channel = supabase
-            .channel('deals-feed-' + developerId)
+        const eventsChannel = supabase
+            .channel(`live-activity-${developerId}`)
             .on(
                 'postgres_changes',
-                {
-                    event: 'INSERT',
-                    schema: 'public',
-                    table: 'deals',
-                    filter: `developer_id=eq.${developerId}`
-                },
-                (payload) => {
-                    const newDeal = payload.new as DealData
-                    if (['active', 'escalated', 'paused'].includes(newDeal.status)) {
-                        setDeals(prev => {
-                            if (prev.some(d => d.id === newDeal.id)) return prev
-                            return [newDeal, ...prev]
-                        })
-                        setNewDealId(newDeal.id)
-                        setActiveCount(prev => prev + 1)
-                        setTimeout(() => setNewDealId(null), 3000)
+                { event: 'INSERT', schema: 'public', table: 'deal_events' },
+                async (payload) => {
+                    const incoming = payload.new as any
+                    const { data: deal } = await supabase
+                        .from('deals')
+                        .select('id, intent, status')
+                        .eq('id', incoming.deal_id)
+                        .eq('developer_id', developerId)
+                        .single()
+
+                    if (!deal) return
+
+                    const nextEvent: ActivityEvent = {
+                        id: incoming.id,
+                        deal_id: incoming.deal_id,
+                        actor: incoming.actor || 'system',
+                        action: incoming.action,
+                        created_at: incoming.created_at,
+                        intent: deal.intent,
+                        value: extractValue(incoming.payload),
+                        statusColor: colorByAction(incoming.action),
                     }
+
+                    setEvents((prev) => [nextEvent, ...prev.filter((e) => e.id !== nextEvent.id)].slice(0, 50))
                 }
             )
+            .subscribe()
+
+        const dealsChannel = supabase
+            .channel(`live-active-count-${developerId}`)
             .on(
                 'postgres_changes',
                 {
-                    event: 'UPDATE',
+                    event: '*',
                     schema: 'public',
                     table: 'deals',
-                    filter: `developer_id=eq.${developerId}`
+                    filter: `developer_id=eq.${developerId}`,
                 },
-                (payload) => {
-                    const updatedDeal = payload.new as DealData
-                    setDeals(prev => {
-                        const exists = prev.find(d => d.id === updatedDeal.id)
-
-                        if (!['active', 'escalated', 'paused'].includes(updatedDeal.status)) {
-                            // Deal became inactive — remove from feed with delay
-                            if (exists) {
-                                setFadingOutId(updatedDeal.id)
-                                setTimeout(() => {
-                                    setDeals(p => p.filter(d => d.id !== updatedDeal.id))
-                                    setFadingOutId(null)
-                                }, 500)
-                            }
-                            return prev
-                        }
-
-                        // Deal updated — highlight and update row
-                        if (exists) {
-                            setHighlightedId(updatedDeal.id)
-                            setTimeout(() => setHighlightedId(null), 600)
-                            return prev.map(d => d.id === updatedDeal.id ? updatedDeal : d)
-                        }
-
-                        // Was inactive but is now active — add to feed
-                        setNewDealId(updatedDeal.id)
-                        setTimeout(() => setNewDealId(null), 3000)
-                        return [updatedDeal, ...prev].sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime())
-                    })
+                () => {
+                    supabase
+                        .from('deals')
+                        .select('id', { count: 'exact', head: true })
+                        .eq('developer_id', developerId)
+                        .in('status', ['active', 'escalated'])
+                        .then(({ count }) => setActiveCount(count || 0))
                 }
             )
-            .on(
-                'postgres_changes',
-                {
-                    event: 'DELETE',
-                    schema: 'public',
-                    table: 'deals',
-                    filter: `developer_id=eq.${developerId}`
-                },
-                (payload) => {
-                    setDeals(prev => prev.filter(d => d.id !== payload.old.id))
-                }
-            )
-            .subscribe((status) => {
-                if (status === 'SUBSCRIBED') {
-                    setRealtimeConnected(true)
-                }
-                if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
-                    setRealtimeConnected(false)
-                }
-            })
+            .subscribe()
 
         return () => {
-            supabase.removeChannel(channel)
+            supabase.removeChannel(eventsChannel)
+            supabase.removeChannel(dealsChannel)
         }
     }, [developerId, supabase])
 
-    const reconnect = () => {
-        router.refresh()
-    }
-
-    if (deals.length === 0) {
-        return (
-            <div className="bg-surface border border-border-default rounded-xl">
-                <EmptyState
-                    icon={Inbox}
-                    title="No active deals"
-                    description="Your agent's active and escalated deals will stream here contextually in real time."
-                />
-            </div>
-        )
+    const dotClass = (tone: ActivityEvent['statusColor']) => {
+        if (tone === 'positive') return 'bg-positive'
+        if (tone === 'warning') return 'bg-warning'
+        if (tone === 'danger') return 'bg-danger'
+        if (tone === 'acid') return 'bg-electric shadow-[0_0_8px_var(--electric)]'
+        return 'bg-text-muted'
     }
 
     return (
-        <div className="bg-surface border border-border-default rounded-xl overflow-hidden relative" aria-live="polite">
-            {!realtimeConnected && (
-                <button
-                    onClick={reconnect}
-                    className="absolute top-3 right-4 z-10 flex items-center gap-2 text-xs font-medium text-warning bg-warning-dim px-2 py-1 rounded-md border border-warning/30 hover:bg-warning/20 transition-colors"
-                >
-                    <span className="w-1.5 h-1.5 rounded-full bg-warning animate-pulse" />
-                    Live updates paused — click to reconnect
-                </button>
-            )}
-
-            <div className="overflow-x-auto">
-                <div className="min-w-[800px]">
-                    <div className="flex items-center h-10 px-4 border-b border-border-dim text-xs font-medium text-text-muted uppercase tracking-wider">
-                        <div className="w-[120px] shrink-0">Deal ID</div>
-                        <div className="flex-1 min-w-[200px]">Intent</div>
-                        <div className="w-[120px] shrink-0">Status</div>
-                        <div className="w-[140px] shrink-0">Handler</div>
-                        <div className="w-[100px] shrink-0">Time Open</div>
-                        <div className="w-[160px] shrink-0">Last Updated</div>
-                    </div>
-
-                    <div className="divide-y divide-border-dim">
-                        {deals.map(deal => (
-                            <div
-                                key={deal.id}
-                                onClick={() => router.push(`/dashboard/deals/${deal.id}`)}
-                                className={`flex items-center h-[60px] px-4 cursor-pointer transition-all duration-150 group relative
-                                    ${highlightedId === deal.id ? 'animate-pulse-highlight' : 'hover:bg-overlay'}
-                                    ${fadingOutId === deal.id ? 'animate-fade-out pointer-events-none' : ''}
-                                `}
-                            >
-                                {/* ID */}
-                                <div className="w-[120px] shrink-0 flex items-center gap-2 pr-4 relative z-10">
-                                    <span className="font-mono text-xs text-text-muted">
-                                        {deal.id.slice(0, 10)}...
-                                    </span>
-                                    <div className="opacity-0 group-hover:opacity-100 transition-opacity" onClick={e => e.stopPropagation()}>
-                                        <CopyButton value={deal.id} size="sm" className="bg-transparent border-transparent" />
-                                    </div>
-                                </div>
-
-                                {/* Intent & New Badge */}
-                                <div className="flex-1 min-w-[200px] pr-4 flex items-center">
-                                    <span className="text-sm text-text-primary truncate max-w-[90%]" title={deal.intent}>
-                                        {deal.intent}
-                                    </span>
-                                    {newDealId === deal.id && (
-                                        <span className="ml-3 inline-flex text-[10px] font-bold tracking-wider uppercase bg-electric/20 text-electric px-1.5 py-0.5 rounded animate-fade-up">
-                                            NEW
-                                        </span>
-                                    )}
-                                </div>
-
-                                {/* Status */}
-                                <div className="w-[120px] shrink-0 pr-4">
-                                    <DealStatusDot status={deal.status} />
-                                </div>
-
-                                {/* Handler */}
-                                <div className="w-[140px] shrink-0 pr-4">
-                                    {deal.current_handler ? (
-                                        <span className="inline-flex items-center justify-center px-2 py-0.5 bg-overlay/50 border border-border-dim rounded-full text-xs text-text-secondary truncate max-w-full">
-                                            {deal.current_handler}
-                                        </span>
-                                    ) : (
-                                        <span className="text-xs text-text-muted italic">Unassigned</span>
-                                    )}
-                                </div>
-
-                                {/* Time Open */}
-                                <div className="w-[100px] shrink-0 text-text-secondary text-xs pr-4">
-                                    <RelativeTime timestamp={deal.created_at} />
-                                </div>
-
-                                {/* Last Update */}
-                                <div className="w-[160px] shrink-0 text-text-muted text-xs truncate">
-                                    <RelativeTime timestamp={deal.updated_at} />
-                                </div>
-                            </div>
-                        ))}
-                    </div>
+        <div className="rounded-xl border border-border-default bg-surface p-4 md:p-5">
+            <div className="mb-4 flex items-center justify-between border-b border-border-dim pb-3">
+                <h2 className="text-xs font-semibold uppercase tracking-[0.12em] text-text-secondary">LIVE ACTIVITY</h2>
+                <div className="font-mono text-xs text-text-muted">
+                    <span className="mr-2 inline-block h-1.5 w-1.5 rounded-full bg-electric animate-status-pulse" />
+                    {activeCount} active deals
                 </div>
+            </div>
+
+            <div className="space-y-2" aria-live="polite">
+                {events.length === 0 ? (
+                    <div className="rounded-lg border border-border-dim bg-elevated px-4 py-6 text-sm text-text-secondary">
+                        No events yet. Create a deal to start the stream.
+                    </div>
+                ) : (
+                    events.map((event) => (
+                        <div
+                            key={event.id}
+                            className="grid grid-cols-[10px_auto_90px] items-start gap-3 rounded-lg border border-transparent px-2 py-2 hover:border-border-dim animate-slide-in-top"
+                        >
+                            <span className={`mt-1.5 h-2 w-2 rounded-full ${dotClass(event.statusColor)}`} />
+
+                            <div className="min-w-0 text-sm leading-6">
+                                <span className="font-mono text-electric">{event.actor}</span>
+                                <span className="mx-2 text-text-secondary">{actionText(event.action)}</span>
+                                {typeof event.value === 'number' && (
+                                    <span className="font-mono text-text-primary">${event.value.toLocaleString()}</span>
+                                )}
+                                <span className="mx-2 text-text-secondary">on</span>
+                                <span className="truncate text-text-muted inline-block max-w-[65%] align-bottom" title={event.intent}>
+                                    {event.intent}
+                                </span>
+                            </div>
+
+                            <div className="text-right text-[11px] text-text-muted font-mono pt-1">
+                                <RelativeTime timestamp={event.created_at} />
+                            </div>
+                        </div>
+                    ))
+                )}
             </div>
         </div>
     )

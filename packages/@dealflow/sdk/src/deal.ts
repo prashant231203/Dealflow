@@ -139,12 +139,12 @@ export class Deal {
    * Perform any deal action. Sends the request to the API, updates local
    * state from the response, and returns `this` for optional chaining.
    */
-  async act(action: DealAction, payload: { actor: string;[key: string]: unknown }): Promise<this> {
-    const { actor, ...rest } = payload
+  async act(action: DealAction, payload: { actor: string; signature?: string; publicKey?: string;[key: string]: unknown }): Promise<this> {
+    const { actor, signature, publicKey, ...rest } = payload
     const response = await this._client._request<{ deal: DealData }>(
       'POST',
       `/api/v1/deals/${this.id}/actions`,
-      { action, actor, payload: rest },
+      { action, actor, signature, publicKey, payload: rest },
     )
     Object.assign(this, response.deal)
     return this

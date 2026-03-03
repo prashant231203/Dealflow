@@ -4,41 +4,59 @@
 
 @layer base {
   :root {
-    /* Base */
-    --bg-void: 6 6 8;
-    --bg-surface: 13 13 20;
-    --bg-elevated: 19 19 31;
-    --bg-overlay: 26 26 46;
+    --void: #000000;
+    --base: #080808;
+    --surface-1: #0F0F0F;
+    --surface-2: #141414;
+    --surface-3: #1A1A1A;
+    --surface-4: #202020;
+    --border-1: #1F1F1F;
+    --border-2: #2A2A2A;
+    --border-3: #383838;
 
-    /* Borders */
-    --border-dim: 28 28 46;
-    --border-default: 37 37 56;
-    --border-bright: 53 53 85;
+    --acid: #ADFF2F;
+    --acid-dim: rgba(173, 255, 47, 0.08);
+    --acid-glow: 0 0 24px rgba(173, 255, 47, 0.25);
 
-    /* Brand */
-    --electric: 77 255 180;
-    --electric-dim: 77 255 180 0.08;
-    /* fallback */
+    --positive: #4ADE80;
+    --positive-dim: rgba(74, 222, 128, 0.1);
+    --warning: #FB923C;
+    --warning-dim: rgba(251, 146, 60, 0.1);
+    --danger: #F87171;
+    --danger-dim: rgba(248, 113, 113, 0.1);
 
-    /* Semantic */
-    --positive: 77 255 180;
-    --warning: 255 179 71;
-    --danger: 255 77 109;
-    --info: 77 159 255;
+    --text-1: #FAFAFA;
+    --text-2: #A1A1A1;
+    --text-3: #525252;
+    --text-4: #2E2E2E;
 
-    /* Text */
-    --text-primary: 232 232 240;
-    --text-secondary: 120 120 160;
-    --text-muted: 61 61 92;
-    --text-data: 200 200 255;
+    /* Compatibility aliases for existing Tailwind token usage */
+    --bg-void: var(--base);
+    --bg-surface: var(--surface-1);
+    --bg-elevated: var(--surface-2);
+    --bg-overlay: var(--surface-3);
 
-    /* Status */
-    --status-active: #4DFFB4;
-    --status-paused: #FFB347;
-    --status-escalated: #4D9FFF;
-    --status-closed: #3D3D5C;
-    --status-expired: #FF4D6D;
-    --status-cancelled: #FF4D6D;
+    --border-dim: var(--border-1);
+    --border-default: var(--border-2);
+    --border-bright: var(--border-3);
+
+    --electric: var(--acid);
+    --electric-dim: var(--acid-dim);
+
+    --info: #60A5FA;
+    --info-dim: rgba(96, 165, 250, 0.1);
+
+    --text-primary: var(--text-1);
+    --text-secondary: var(--text-2);
+    --text-muted: var(--text-3);
+    --text-data: #D4D4D8;
+
+    --status-active: var(--acid);
+    --status-paused: var(--warning);
+    --status-escalated: #C084FC;
+    --status-closed: #3F3F46;
+    --status-expired: var(--danger);
+    --status-cancelled: var(--danger);
 
     --radius: 0.5rem;
   }
@@ -48,24 +66,22 @@
   }
 
   body {
-    background-color: rgb(var(--bg-void));
-    color: rgb(var(--text-primary));
+    background-color: var(--base);
+    color: var(--text-1);
     background-image:
-      radial-gradient(ellipse 80% 50% at 20% -10%, rgba(13, 31, 51, 0.15) 0%, transparent 60%),
-      radial-gradient(ellipse 60% 40% at 80% 110%, rgba(26, 13, 46, 0.15) 0%, transparent 60%);
-    background-attachment: fixed;
+      linear-gradient(var(--border-1) 1px, transparent 1px),
+      linear-gradient(90deg, var(--border-1) 1px, transparent 1px);
+    background-size: 32px 32px;
     min-height: 100vh;
   }
 
-  /* Noise Overlay */
-  body::before {
+  body::after {
     content: '';
     position: fixed;
     inset: 0;
-    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
-    opacity: 0.025;
+    background: radial-gradient(ellipse 60% 40% at 50% 0%, rgba(173, 255, 47, 0.03), transparent 70%);
     pointer-events: none;
-    z-index: 9999;
+    z-index: 0;
   }
 
   /* Interactive base states */
@@ -76,15 +92,15 @@
   }
 
   :focus-visible {
-    outline: 2px solid rgb(var(--electric));
+    outline: 2px solid var(--acid);
     outline-offset: 2px;
     border-radius: 4px;
   }
 
   /* Selection glow */
   ::selection {
-    background-color: rgba(var(--electric), 0.2);
-    color: rgb(var(--text-primary));
+    background-color: var(--acid-dim);
+    color: var(--text-1);
   }
 
   /* Custom scrollbar for deep dark ui */
@@ -98,12 +114,12 @@
   }
 
   ::-webkit-scrollbar-thumb {
-    background: rgb(var(--bg-elevated));
+    background: var(--surface-2);
     border-radius: 3px;
   }
 
   ::-webkit-scrollbar-thumb:hover {
-    background: rgb(var(--border-default));
+    background: var(--border-3);
   }
 }
 
@@ -113,29 +129,113 @@
   }
 
   .loading-shimmer {
-    background: linear-gradient(90deg, transparent 25%, rgba(var(--electric), 0.05) 50%, transparent 75%);
+    background: linear-gradient(90deg, transparent 25%, rgba(173, 255, 47, 0.05) 50%, transparent 75%);
     background-size: 400px 100%;
-    animation: shimmer 1.5s infinite;
+    animation: skeleton-shimmer 1.5s infinite linear;
+    animation-fill-mode: both;
   }
 
   .skeleton-shimmer {
-    background: linear-gradient(90deg, rgb(var(--border-dim)) 25%, rgb(var(--border-default)) 50%, rgb(var(--border-dim)) 75%);
+    background: linear-gradient(90deg, var(--surface-2) 25%, var(--surface-3) 50%, var(--surface-2) 75%);
     background-size: 400px 100%;
-    animation: shimmer 1.5s infinite;
+    animation: skeleton-shimmer 1.5s infinite linear;
+    animation-fill-mode: both;
   }
 }
-
-/* ── REQUIRED ANIMATION KEYFRAMES ── */
 
 @keyframes fade-up {
   from {
     opacity: 0;
-    transform: translateY(10px);
+    transform: translateY(8px);
   }
 
   to {
     opacity: 1;
     transform: translateY(0);
+  }
+}
+
+@keyframes slide-in-top {
+  from {
+    opacity: 0;
+    transform: translateY(-12px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes flash-acid {
+  0% {
+    box-shadow: 0 0 0 1px var(--acid);
+  }
+
+  50% {
+    box-shadow: var(--acid-glow);
+  }
+
+  100% {
+    box-shadow: none;
+  }
+}
+
+@keyframes stream-in {
+  from {
+    opacity: 0;
+    transform: translateX(-8px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes status-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+
+  50% {
+    transform: scale(1.4);
+    opacity: 0.6;
+  }
+}
+
+@keyframes skeleton-shimmer {
+  from {
+    background-position: -400px 0;
+  }
+
+  to {
+    background-position: 400px 0;
+  }
+}
+
+@keyframes modal-in {
+  from {
+    opacity: 0;
+    transform: scale(0.96) translateY(-8px);
+  }
+
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+@keyframes compliance-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 1px rgba(248, 113, 113, 0.2);
+  }
+
+  50% {
+    box-shadow: 0 0 16px rgba(248, 113, 113, 0.4);
   }
 }
 
@@ -151,17 +251,11 @@
 
 @keyframes pulse-highlight {
   0% {
-    background-color: rgba(var(--electric), 0.2);
+    background-color: var(--acid-dim);
   }
 
   100% {
     background-color: transparent;
-  }
-}
-
-@keyframes shimmer {
-  100% {
-    transform: translateX(100%);
   }
 }
 
@@ -188,18 +282,6 @@
   }
 }
 
-@keyframes modal-in {
-  from {
-    opacity: 0;
-    transform: scale(0.95);
-  }
-
-  to {
-    opacity: 1;
-    transform: scale(1);
-  }
-}
-
 @keyframes modal-out {
   from {
     opacity: 1;
@@ -217,12 +299,38 @@
   animation-fill-mode: both;
 }
 
+.animate-slide-in-top {
+  animation: slide-in-top 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+  animation-fill-mode: both;
+}
+
+.animate-flash-acid {
+  animation: flash-acid 2s ease-out;
+  animation-fill-mode: both;
+}
+
+.animate-stream-in {
+  animation: stream-in 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  animation-fill-mode: both;
+}
+
+.animate-status-pulse {
+  animation: status-pulse 2s ease-in-out infinite;
+  animation-fill-mode: both;
+}
+
+.animate-compliance-pulse {
+  animation: compliance-pulse 3s ease-in-out infinite;
+  animation-fill-mode: both;
+}
+
 .animate-fade-out {
   animation: fade-out 0.5s ease-out forwards;
 }
 
 .animate-pulse-highlight {
   animation: pulse-highlight 0.6s ease-out;
+  animation-fill-mode: both;
 }
 
 .animate-shimmer {
@@ -243,7 +351,8 @@
       rgba(255, 255, 255, 0.05) 20%,
       rgba(255, 255, 255, 0.1) 60%,
       rgba(255, 255, 255, 0));
-  animation: shimmer 1.5s infinite;
+  animation: skeleton-shimmer 1.5s infinite linear;
+  animation-fill-mode: both;
 }
 
 .animate-shake {
@@ -252,8 +361,18 @@
 
 [data-state="open"].dialog-content {
   animation: modal-in 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+  animation-fill-mode: both;
 }
 
 [data-state="closed"].dialog-content {
   animation: modal-out 0.1s ease-in;
+  animation-fill-mode: both;
+}
+
+.skeleton {
+  background: linear-gradient(90deg, var(--surface-2) 25%, var(--surface-3) 50%, var(--surface-2) 75%);
+  background-size: 400px 100%;
+  animation: skeleton-shimmer 1.4s infinite linear;
+  animation-fill-mode: both;
+  border-radius: 4px;
 }

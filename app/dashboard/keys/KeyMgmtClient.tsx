@@ -6,6 +6,7 @@ import { RelativeTime } from '@/components/shared/RelativeTime'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
 import { KeyCreateModal } from '@/components/keys/KeyCreateModal'
+import { CopyButton } from '@/components/shared/CopyButton'
 import { createBrowserClient } from '@supabase/ssr'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useEffect } from 'react'
@@ -74,25 +75,36 @@ export function KeyMgmtClient({ initialKeys }: { initialKeys: ApiKeyData[] }) {
                         <table className="w-full text-left border-collapse">
                             <thead>
                                 <tr className="border-b border-border-dim bg-overlay/30 text-xs font-medium text-text-muted uppercase tracking-wider">
-                                    <th className="py-3 px-4 font-normal">Name & Hint</th>
-                                    <th className="py-3 px-4 font-normal">Status</th>
+                                    <th className="py-3 px-4 font-normal">Name</th>
+                                    <th className="py-3 px-4 font-normal">Environment</th>
+                                    <th className="py-3 px-4 font-normal">Prefix</th>
                                     <th className="py-3 px-4 font-normal">Created</th>
                                     <th className="py-3 px-4 font-normal">Last Used</th>
+                                    <th className="py-3 px-4 font-normal">Status</th>
                                     <th className="py-3 px-4 font-normal text-right">Actions</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-border-dim">
                                 {keys.map((k) => (
-                                    <tr key={k.id} className="hover:bg-overlay transition-colors group">
+                                    <tr key={k.id} className={`hover:bg-overlay transition-colors group ${!k.is_active ? 'opacity-40' : ''}`}>
                                         <td className="py-3 px-4">
-                                            <div className="font-medium text-sm text-text-primary mb-0.5">{k.name}</div>
-                                            <div className="font-mono text-xs text-text-muted">df_{k.hint}</div>
+                                            <div className={`font-medium text-sm text-text-primary mb-0.5 ${!k.is_active ? 'line-through' : ''}`}>{k.name}</div>
                                         </td>
                                         <td className="py-3 px-4">
-                                            <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium border ${k.is_active ? 'bg-status-active/10 text-status-active border-status-active/20' : 'bg-status-closed/10 text-status-closed border-status-closed/20'}`}>
-                                                <div className={`w-1.5 h-1.5 rounded-full ${k.is_active ? 'bg-status-active shadow-[0_0_6px_var(--status-active)] animate-pulse' : 'bg-status-closed'}`} />
-                                                {k.is_active ? 'Active' : 'Inactive'}
+                                            <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium border ${(k.name || '').toLowerCase().includes('test')
+                                                ? 'bg-info/10 text-info border-info/30'
+                                                : 'bg-positive/10 text-positive border-positive/30'
+                                                }`}>
+                                                {(k.name || '').toLowerCase().includes('test') ? 'test' : 'live'}
                                             </span>
+                                        </td>
+                                        <td className="py-3 px-4">
+                                            <div className="flex items-center gap-2 group/prefix">
+                                                <span className="font-mono text-xs text-text-muted">df_{k.hint}</span>
+                                                <div className="opacity-0 group-hover/prefix:opacity-100 transition-opacity">
+                                                    <CopyButton value={`df_${k.hint}`} size="sm" className="bg-transparent border-transparent" />
+                                                </div>
+                                            </div>
                                         </td>
                                         <td className="py-3 px-4 text-xs text-text-secondary">
                                             {new Date(k.created_at).toLocaleDateString()}
@@ -106,6 +118,12 @@ export function KeyMgmtClient({ initialKeys }: { initialKeys: ApiKeyData[] }) {
                                             ) : (
                                                 <span className="italic text-text-muted">Never</span>
                                             )}
+                                        </td>
+                                        <td className="py-3 px-4">
+                                            <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium border ${k.is_active ? 'bg-status-active/10 text-status-active border-status-active/20' : 'bg-status-closed/10 text-status-closed border-status-closed/20'}`}>
+                                                <div className={`w-1.5 h-1.5 rounded-full ${k.is_active ? 'bg-status-active shadow-[0_0_6px_var(--status-active)] animate-pulse' : 'bg-status-closed'}`} />
+                                                {k.is_active ? 'Active' : 'Revoked'}
+                                            </span>
                                         </td>
                                         <td className="py-3 px-4 text-right">
                                             <button
