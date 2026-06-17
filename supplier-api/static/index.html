@@ -1,0 +1,694 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Supplier Readiness — Agentic Commerce</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            brand: { 50:'#f0f9ff', 100:'#e0f2fe', 500:'#0ea5e9', 600:'#0284c7', 700:'#0369a1' }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    [x-cloak] { display: none !important; }
+    .fade-in { animation: fadeIn 0.2s ease-in; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+  </style>
+</head>
+<body class="h-full bg-slate-950 text-slate-100 font-sans" x-data="app()" x-init="init()">
+
+  <!-- LOGIN SCREEN -->
+  <div x-show="!authed" x-cloak class="min-h-screen flex items-center justify-center p-4">
+    <div class="w-full max-w-md fade-in">
+      <div class="text-center mb-8">
+        <div class="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-brand-600 mb-4">
+          <svg class="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+          </svg>
+        </div>
+        <h1 class="text-2xl font-bold text-white">Supplier Readiness</h1>
+        <p class="text-slate-400 mt-1 text-sm">Make your catalog queryable by AI procurement agents</p>
+      </div>
+
+      <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6">
+        <div class="mb-6">
+          <h2 class="text-lg font-semibold text-white">Sign in</h2>
+          <p class="text-slate-400 text-sm mt-1">Enter your API key to access your dashboard</p>
+        </div>
+
+        <div x-show="loginError" class="mb-4 p-3 bg-red-950 border border-red-800 rounded-lg text-red-400 text-sm" x-text="loginError"></div>
+
+        <div class="space-y-4">
+          <div>
+            <label class="block text-sm font-medium text-slate-300 mb-1.5">API Key</label>
+            <input
+              x-model="apiKeyInput"
+              @keyup.enter="login()"
+              type="password"
+              placeholder="sup_..."
+              class="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent transition"
+            />
+          </div>
+          <button
+            @click="login()"
+            :disabled="loggingIn"
+            class="w-full bg-brand-600 hover:bg-brand-700 disabled:opacity-60 text-white font-semibold py-3 px-4 rounded-xl transition flex items-center justify-center gap-2"
+          >
+            <svg x-show="loggingIn" class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
+            </svg>
+            <span x-text="loggingIn ? 'Signing in...' : 'Sign in'"></span>
+          </button>
+        </div>
+
+        <div class="mt-6 pt-5 border-t border-slate-800">
+          <p class="text-slate-400 text-sm text-center mb-3">Don't have an account?</p>
+          <button @click="showRegister = true" class="w-full border border-slate-700 hover:border-slate-600 text-slate-300 hover:text-white font-medium py-2.5 px-4 rounded-xl transition text-sm">
+            Register as a supplier
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- REGISTER MODAL -->
+    <div x-show="showRegister" x-cloak class="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4" @click.self="showRegister = false">
+      <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 w-full max-w-md fade-in">
+        <h3 class="text-lg font-semibold text-white mb-4">Create supplier account</h3>
+        <div x-show="registerResult" class="mb-4 p-3 bg-green-950 border border-green-800 rounded-lg text-green-400 text-sm">
+          <p class="font-medium">Account created!</p>
+          <p class="mt-1">Your API key (save this — shown once):</p>
+          <code class="block mt-2 bg-slate-800 rounded p-2 text-xs break-all text-white" x-text="registerResult"></code>
+        </div>
+        <div x-show="!registerResult" class="space-y-4">
+          <div>
+            <label class="block text-sm font-medium text-slate-300 mb-1.5">Company name</label>
+            <input x-model="regName" type="text" placeholder="Acme Corp" class="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-brand-500 transition"/>
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-slate-300 mb-1.5">Email</label>
+            <input x-model="regEmail" type="email" placeholder="you@company.com" class="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-brand-500 transition"/>
+          </div>
+          <div x-show="regError" class="text-red-400 text-sm" x-text="regError"></div>
+          <div class="flex gap-3">
+            <button @click="showRegister = false" class="flex-1 border border-slate-700 text-slate-300 py-2.5 rounded-xl text-sm hover:border-slate-600 transition">Cancel</button>
+            <button @click="register()" class="flex-1 bg-brand-600 hover:bg-brand-700 text-white py-2.5 rounded-xl text-sm font-medium transition">Create account</button>
+          </div>
+        </div>
+        <div x-show="registerResult" class="mt-4">
+          <button @click="showRegister = false; registerResult = ''" class="w-full bg-brand-600 hover:bg-brand-700 text-white py-2.5 rounded-xl text-sm font-medium transition">Done</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MAIN APP -->
+  <div x-show="authed" x-cloak class="flex h-screen overflow-hidden">
+
+    <!-- SIDEBAR -->
+    <aside class="w-60 bg-slate-900 border-r border-slate-800 flex flex-col flex-shrink-0">
+      <div class="p-5 border-b border-slate-800">
+        <div class="flex items-center gap-3">
+          <div class="w-8 h-8 rounded-lg bg-brand-600 flex items-center justify-center flex-shrink-0">
+            <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+            </svg>
+          </div>
+          <div class="min-w-0">
+            <p class="text-sm font-semibold text-white truncate" x-text="supplierName || 'Supplier'"></p>
+            <p class="text-xs text-slate-500">Supplier Portal</p>
+          </div>
+        </div>
+      </div>
+
+      <nav class="flex-1 p-3 space-y-1">
+        <template x-for="item in navItems" :key="item.id">
+          <button
+            @click="page = item.id; if(item.id === 'dashboard') loadDashboard(); if(item.id === 'catalog') loadProducts(); if(item.id === 'rfq') loadRFQs()"
+            :class="page === item.id ? 'bg-brand-600 text-white' : 'text-slate-400 hover:text-white hover:bg-slate-800'"
+            class="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition text-left"
+          >
+            <span x-html="item.icon" class="w-5 h-5 flex-shrink-0"></span>
+            <span x-text="item.label"></span>
+            <span x-show="item.id === 'rfq' && pendingRFQCount > 0" class="ml-auto bg-orange-500 text-white text-xs font-bold px-1.5 py-0.5 rounded-full" x-text="pendingRFQCount"></span>
+          </button>
+        </template>
+      </nav>
+
+      <div class="p-3 border-t border-slate-800">
+        <button @click="logout()" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-slate-400 hover:text-white hover:bg-slate-800 transition">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
+          Sign out
+        </button>
+      </div>
+    </aside>
+
+    <!-- CONTENT -->
+    <main class="flex-1 overflow-y-auto bg-slate-950">
+
+      <!-- DASHBOARD PAGE -->
+      <div x-show="page === 'dashboard'" class="p-8 fade-in">
+        <div class="mb-8">
+          <h1 class="text-2xl font-bold text-white">Dashboard</h1>
+          <p class="text-slate-400 mt-1">Overview of your supplier account</p>
+        </div>
+
+        <!-- Stats Grid -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 mb-8">
+          <template x-for="stat in statsCards" :key="stat.label">
+            <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5">
+              <div class="flex items-center justify-between mb-3">
+                <p class="text-slate-400 text-sm" x-text="stat.label"></p>
+                <div :class="stat.iconBg" class="w-9 h-9 rounded-xl flex items-center justify-center">
+                  <span x-html="stat.icon" class="w-4 h-4"></span>
+                </div>
+              </div>
+              <p class="text-3xl font-bold text-white" x-text="stat.value"></p>
+              <p class="text-xs text-slate-500 mt-1" x-text="stat.sub"></p>
+            </div>
+          </template>
+        </div>
+
+        <!-- Recent RFQs -->
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl">
+          <div class="p-5 border-b border-slate-800 flex items-center justify-between">
+            <h2 class="font-semibold text-white">Recent RFQs</h2>
+            <button @click="page = 'rfq'; loadRFQs()" class="text-brand-500 hover:text-brand-400 text-sm transition">View all →</button>
+          </div>
+          <div x-show="!recentRFQs.length" class="p-8 text-center text-slate-500 text-sm">No RFQs yet. Agents will appear here when they request quotes.</div>
+          <div x-show="recentRFQs.length > 0" class="divide-y divide-slate-800">
+            <template x-for="rfq in recentRFQs" :key="rfq.rfq_id">
+              <div class="p-4 flex items-center gap-4">
+                <div class="flex-1 min-w-0">
+                  <p class="text-sm font-medium text-white truncate" x-text="'RFQ #' + rfq.rfq_id.slice(0,8)"></p>
+                  <p class="text-xs text-slate-400 mt-0.5" x-text="'From: ' + rfq.requester_id + ' · ' + rfq.quantity + ' units'"></p>
+                </div>
+                <div class="text-right">
+                  <p class="text-sm font-semibold text-white" x-text="rfq.currency + ' ' + (rfq.quoted_price * rfq.quantity).toFixed(2)"></p>
+                  <span :class="statusClass(rfq.status)" class="text-xs font-medium px-2 py-0.5 rounded-full" x-text="rfq.status"></span>
+                </div>
+              </div>
+            </template>
+          </div>
+        </div>
+      </div>
+
+      <!-- CATALOG PAGE -->
+      <div x-show="page === 'catalog'" class="p-8 fade-in">
+        <div class="mb-8 flex items-center justify-between">
+          <div>
+            <h1 class="text-2xl font-bold text-white">Catalog</h1>
+            <p class="text-slate-400 mt-1">Manage your products — agents can query these in real time</p>
+          </div>
+          <div class="flex items-center gap-3">
+            <label class="cursor-pointer flex items-center gap-2 border border-slate-700 hover:border-slate-600 text-slate-300 hover:text-white px-4 py-2 rounded-xl text-sm transition">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
+              Upload CSV
+              <input type="file" accept=".csv" class="hidden" @change="uploadCSV($event)"/>
+            </label>
+            <button @click="openProductModal()" class="bg-brand-600 hover:bg-brand-700 text-white px-4 py-2 rounded-xl text-sm font-medium transition flex items-center gap-2">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+              Add product
+            </button>
+          </div>
+        </div>
+
+        <!-- Search/filter bar -->
+        <div class="flex gap-3 mb-6">
+          <div class="flex-1 relative">
+            <svg class="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0"/></svg>
+            <input x-model="productSearch" @input.debounce.400ms="loadProducts()" type="text" placeholder="Search by name, SKU, category..." class="w-full bg-slate-900 border border-slate-800 rounded-xl pl-10 pr-4 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-brand-500 transition"/>
+          </div>
+        </div>
+
+        <div x-show="uploadMsg" class="mb-4 p-3 bg-green-950 border border-green-800 rounded-lg text-green-400 text-sm" x-text="uploadMsg"></div>
+
+        <!-- Products Table -->
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden">
+          <div x-show="!products.length" class="p-12 text-center">
+            <svg class="w-12 h-12 text-slate-700 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10"/></svg>
+            <p class="text-slate-400 font-medium">No products yet</p>
+            <p class="text-slate-500 text-sm mt-1">Add your first product or upload a CSV</p>
+          </div>
+          <div x-show="products.length > 0" class="overflow-x-auto">
+            <table class="w-full">
+              <thead>
+                <tr class="border-b border-slate-800">
+                  <th class="text-left text-xs font-medium text-slate-500 uppercase tracking-wider px-5 py-3.5">Product</th>
+                  <th class="text-left text-xs font-medium text-slate-500 uppercase tracking-wider px-5 py-3.5">SKU</th>
+                  <th class="text-left text-xs font-medium text-slate-500 uppercase tracking-wider px-5 py-3.5">Price</th>
+                  <th class="text-left text-xs font-medium text-slate-500 uppercase tracking-wider px-5 py-3.5">MOQ</th>
+                  <th class="text-left text-xs font-medium text-slate-500 uppercase tracking-wider px-5 py-3.5">Stock</th>
+                  <th class="text-left text-xs font-medium text-slate-500 uppercase tracking-wider px-5 py-3.5">Floor</th>
+                  <th class="px-5 py-3.5"></th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-slate-800">
+                <template x-for="p in products" :key="p.id">
+                  <tr class="hover:bg-slate-800/40 transition">
+                    <td class="px-5 py-4">
+                      <div>
+                        <p class="text-sm font-medium text-white" x-text="p.name"></p>
+                        <p class="text-xs text-slate-500 mt-0.5" x-text="p.category || '—'"></p>
+                      </div>
+                    </td>
+                    <td class="px-5 py-4 text-sm text-slate-300 font-mono" x-text="p.sku"></td>
+                    <td class="px-5 py-4 text-sm text-white font-semibold" x-text="p.currency + ' ' + p.list_price.toFixed(2)"></td>
+                    <td class="px-5 py-4 text-sm text-slate-300" x-text="p.moq"></td>
+                    <td class="px-5 py-4">
+                      <span x-show="p.stock_available !== null">
+                        <span :class="p.stock_available > 0 ? 'text-green-400' : 'text-red-400'" class="text-sm" x-text="p.stock_available > 0 ? p.stock_available + ' in stock' : 'Out of stock'"></span>
+                      </span>
+                      <span x-show="p.stock_available === null" class="text-slate-500 text-sm">—</span>
+                    </td>
+                    <td class="px-5 py-4 text-sm text-slate-300" x-text="p.price_floor ? p.currency + ' ' + p.price_floor : '—'"></td>
+                    <td class="px-5 py-4">
+                      <div class="flex items-center gap-2 justify-end">
+                        <button @click="openProductModal(p)" class="text-slate-400 hover:text-white transition p-1.5 rounded-lg hover:bg-slate-700">
+                          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+                        </button>
+                        <button @click="deleteProduct(p.id)" class="text-slate-400 hover:text-red-400 transition p-1.5 rounded-lg hover:bg-slate-700">
+                          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                </template>
+              </tbody>
+            </table>
+          </div>
+          <!-- Pagination -->
+          <div x-show="totalProducts > productPerPage" class="px-5 py-3.5 border-t border-slate-800 flex items-center justify-between">
+            <p class="text-sm text-slate-500" x-text="`Showing ${products.length} of ${totalProducts} products`"></p>
+            <div class="flex gap-2">
+              <button @click="productPage--; loadProducts()" :disabled="productPage <= 1" class="px-3 py-1.5 text-sm border border-slate-700 rounded-lg text-slate-300 disabled:opacity-40 hover:border-slate-600 transition">Prev</button>
+              <button @click="productPage++; loadProducts()" :disabled="products.length < productPerPage" class="px-3 py-1.5 text-sm border border-slate-700 rounded-lg text-slate-300 disabled:opacity-40 hover:border-slate-600 transition">Next</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- RFQ INBOX PAGE -->
+      <div x-show="page === 'rfq'" class="p-8 fade-in">
+        <div class="mb-8">
+          <h1 class="text-2xl font-bold text-white">RFQ Inbox</h1>
+          <p class="text-slate-400 mt-1">Quote requests from AI procurement agents</p>
+        </div>
+
+        <!-- Filter tabs -->
+        <div class="flex gap-2 mb-6">
+          <template x-for="tab in rfqTabs" :key="tab.value">
+            <button
+              @click="rfqFilter = tab.value; loadRFQs()"
+              :class="rfqFilter === tab.value ? 'bg-slate-700 text-white' : 'text-slate-400 hover:text-white hover:bg-slate-800'"
+              class="px-4 py-2 rounded-xl text-sm font-medium transition"
+              x-text="tab.label"
+            ></button>
+          </template>
+        </div>
+
+        <div x-show="!rfqs.length" class="bg-slate-900 border border-slate-800 rounded-2xl p-12 text-center">
+          <svg class="w-12 h-12 text-slate-700 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+          <p class="text-slate-400 font-medium">No RFQs found</p>
+          <p class="text-slate-500 text-sm mt-1">Procurement agents will send quote requests once your catalog is live</p>
+        </div>
+
+        <div class="space-y-3">
+          <template x-for="rfq in rfqs" :key="rfq.rfq_id">
+            <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 hover:border-slate-700 transition">
+              <div class="flex items-start justify-between gap-4">
+                <div class="flex-1 min-w-0">
+                  <div class="flex items-center gap-3 mb-2">
+                    <span :class="statusClass(rfq.status)" class="text-xs font-semibold px-2.5 py-1 rounded-full" x-text="rfq.status.replace('_', ' ').toUpperCase()"></span>
+                    <span class="text-slate-500 text-xs" x-text="new Date(rfq.created_at).toLocaleString()"></span>
+                  </div>
+                  <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-3">
+                    <div>
+                      <p class="text-xs text-slate-500">Agent / Requester</p>
+                      <p class="text-sm text-white mt-0.5 font-mono truncate" x-text="rfq.requester_id"></p>
+                    </div>
+                    <div>
+                      <p class="text-xs text-slate-500">Quantity</p>
+                      <p class="text-sm text-white mt-0.5 font-semibold" x-text="rfq.quantity + ' units'"></p>
+                    </div>
+                    <div>
+                      <p class="text-xs text-slate-500">Quoted price</p>
+                      <p class="text-sm text-white mt-0.5 font-semibold" x-text="rfq.currency + ' ' + (rfq.quoted_price * rfq.quantity).toFixed(2)"></p>
+                    </div>
+                    <div>
+                      <p class="text-xs text-slate-500">Unit price</p>
+                      <p class="text-sm text-white mt-0.5" x-text="rfq.currency + ' ' + rfq.quoted_price?.toFixed(4)"></p>
+                    </div>
+                  </div>
+                  <!-- Compliance flags -->
+                  <div x-show="rfq.compliance_flags && rfq.compliance_flags.length > 0" class="mt-3 flex flex-wrap gap-2">
+                    <template x-for="flag in rfq.compliance_flags" :key="flag.type">
+                      <span :class="flag.severity === 'critical' ? 'bg-red-950 text-red-400 border-red-900' : flag.severity === 'warning' ? 'bg-yellow-950 text-yellow-400 border-yellow-900' : 'bg-slate-800 text-slate-400 border-slate-700'" class="text-xs px-2.5 py-1 rounded-full border" x-text="flag.message"></span>
+                    </template>
+                  </div>
+                </div>
+                <!-- Actions -->
+                <div x-show="rfq.status === 'quoted' || rfq.status === 'pending_review'" class="flex flex-col gap-2 flex-shrink-0">
+                  <button @click="acceptRFQ(rfq.rfq_id)" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-xl text-sm font-medium transition">Accept</button>
+                  <button @click="rejectRFQ(rfq.rfq_id)" class="border border-red-800 hover:bg-red-950 text-red-400 px-4 py-2 rounded-xl text-sm font-medium transition">Reject</button>
+                </div>
+              </div>
+            </div>
+          </template>
+        </div>
+      </div>
+
+      <!-- API INFO PAGE -->
+      <div x-show="page === 'api'" class="p-8 fade-in">
+        <div class="mb-8">
+          <h1 class="text-2xl font-bold text-white">Agent API</h1>
+          <p class="text-slate-400 mt-1">Endpoints that AI procurement agents use to discover and transact with you</p>
+        </div>
+        <div class="space-y-4">
+          <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5">
+            <div class="flex items-center gap-3 mb-3">
+              <span class="bg-green-900 text-green-400 text-xs font-bold px-2 py-0.5 rounded">GET</span>
+              <code class="text-sm text-white font-mono">/v1/agent/suppliers/<span x-text="supplierId" class="text-brand-400"></span>/catalog</code>
+            </div>
+            <p class="text-sm text-slate-400">Browse your full product catalog. Agents call this to discover what you sell.</p>
+            <p class="text-xs text-slate-500 mt-2">Params: <code class="text-slate-400">q, category, max_price, page, per_page</code></p>
+          </div>
+          <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5">
+            <div class="flex items-center gap-3 mb-3">
+              <span class="bg-blue-900 text-blue-400 text-xs font-bold px-2 py-0.5 rounded">POST</span>
+              <code class="text-sm text-white font-mono">/v1/agent/rfq</code>
+            </div>
+            <p class="text-sm text-slate-400">Agents submit quote requests here. Returns instant pricing based on your guardrails.</p>
+            <div class="mt-3 bg-slate-800 rounded-xl p-3">
+              <pre class="text-xs text-slate-300 overflow-x-auto">{
+  "supplier_id": "<span x-text="supplierId" class="text-brand-400"></span>",
+  "product_id": "product-uuid",
+  "quantity": 100,
+  "requester_id": "agent-procurement-001",
+  "requested_price": 450.00
+}</pre>
+            </div>
+          </div>
+          <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5">
+            <p class="text-sm font-medium text-white mb-2">Your supplier ID</p>
+            <div class="flex items-center gap-3">
+              <code class="flex-1 bg-slate-800 rounded-xl px-4 py-3 text-sm font-mono text-brand-400" x-text="supplierId"></code>
+              <button @click="copyToClipboard(supplierId)" class="border border-slate-700 hover:border-slate-600 text-slate-400 hover:text-white px-4 py-3 rounded-xl text-sm transition">Copy</button>
+            </div>
+            <p class="text-xs text-slate-500 mt-2">Share this ID with agents or buyers so they can query your catalog.</p>
+          </div>
+        </div>
+      </div>
+
+    </main>
+  </div>
+
+  <!-- PRODUCT MODAL -->
+  <div x-show="showProductModal" x-cloak class="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4" @click.self="showProductModal = false">
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 w-full max-w-lg max-h-[90vh] overflow-y-auto fade-in">
+      <h3 class="text-lg font-semibold text-white mb-5" x-text="editingProduct ? 'Edit product' : 'Add product'"></h3>
+      <div class="grid grid-cols-2 gap-4">
+        <div class="col-span-2">
+          <label class="block text-xs font-medium text-slate-400 mb-1.5">Product name *</label>
+          <input x-model="productForm.name" type="text" class="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-brand-500 transition"/>
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-slate-400 mb-1.5">SKU *</label>
+          <input x-model="productForm.sku" type="text" class="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-brand-500 transition"/>
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-slate-400 mb-1.5">Category</label>
+          <input x-model="productForm.category" type="text" class="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-brand-500 transition"/>
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-slate-400 mb-1.5">List price *</label>
+          <input x-model="productForm.list_price" type="number" step="0.01" class="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-brand-500 transition"/>
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-slate-400 mb-1.5">Currency</label>
+          <input x-model="productForm.currency" type="text" placeholder="USD" class="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-brand-500 transition"/>
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-slate-400 mb-1.5">Min order qty (MOQ)</label>
+          <input x-model="productForm.moq" type="number" class="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-brand-500 transition"/>
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-slate-400 mb-1.5">Price floor</label>
+          <input x-model="productForm.price_floor" type="number" step="0.01" placeholder="Min acceptable price" class="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-brand-500 transition"/>
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-slate-400 mb-1.5">Stock available</label>
+          <input x-model="productForm.stock_available" type="number" class="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-brand-500 transition"/>
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-slate-400 mb-1.5">Lead time (days)</label>
+          <input x-model="productForm.lead_time_days" type="number" class="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-brand-500 transition"/>
+        </div>
+        <div class="col-span-2">
+          <label class="block text-xs font-medium text-slate-400 mb-1.5">Unit</label>
+          <input x-model="productForm.unit" type="text" placeholder="unit, kg, box, pallet..." class="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-brand-500 transition"/>
+        </div>
+        <div class="col-span-2">
+          <label class="block text-xs font-medium text-slate-400 mb-1.5">Description</label>
+          <textarea x-model="productForm.description" rows="2" class="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-brand-500 transition resize-none"></textarea>
+        </div>
+        <div class="col-span-2">
+          <label class="block text-xs font-medium text-slate-400 mb-1.5">Volume discount tiers (JSON)</label>
+          <textarea x-model="productForm.discount_tiers_raw" rows="2" placeholder='[{"min_qty": 100, "discount_pct": 10}, {"min_qty": 500, "discount_pct": 15}]' class="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2.5 text-xs text-white font-mono focus:outline-none focus:ring-2 focus:ring-brand-500 transition resize-none"></textarea>
+        </div>
+      </div>
+      <div x-show="productFormError" class="mt-3 text-red-400 text-sm" x-text="productFormError"></div>
+      <div class="flex gap-3 mt-5">
+        <button @click="showProductModal = false" class="flex-1 border border-slate-700 text-slate-300 py-2.5 rounded-xl text-sm hover:border-slate-600 transition">Cancel</button>
+        <button @click="saveProduct()" class="flex-1 bg-brand-600 hover:bg-brand-700 text-white py-2.5 rounded-xl text-sm font-medium transition">
+          <span x-text="editingProduct ? 'Save changes' : 'Add product'"></span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const API = '';
+
+    function app() {
+      return {
+        authed: false,
+        apiKey: '',
+        apiKeyInput: '',
+        loggingIn: false,
+        loginError: '',
+        supplierId: '',
+        supplierName: '',
+        page: 'dashboard',
+
+        showRegister: false,
+        regName: '', regEmail: '', regError: '', registerResult: '',
+
+        statsCards: [],
+        recentRFQs: [],
+
+        products: [], productSearch: '', productPage: 1, productPerPage: 50, totalProducts: 0,
+        showProductModal: false, editingProduct: null, productFormError: '',
+        productForm: { name:'', sku:'', category:'', list_price:'', currency:'USD', moq:1, price_floor:'', stock_available:'', lead_time_days:'', unit:'unit', description:'', discount_tiers_raw:'' },
+        uploadMsg: '',
+
+        rfqs: [], rfqFilter: 'all', pendingRFQCount: 0,
+        rfqTabs: [
+          { label: 'All', value: 'all' },
+          { label: 'Pending', value: 'quoted' },
+          { label: 'Accepted', value: 'accepted' },
+          { label: 'Rejected', value: 'rejected' },
+        ],
+
+        navItems: [
+          { id: 'dashboard', label: 'Dashboard', icon: '<svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>' },
+          { id: 'catalog', label: 'Catalog', icon: '<svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10"/></svg>' },
+          { id: 'rfq', label: 'RFQ Inbox', icon: '<svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>' },
+          { id: 'api', label: 'Agent API', icon: '<svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"/></svg>' },
+        ],
+
+        init() {
+          const saved = localStorage.getItem('supplier_api_key');
+          if (saved) { this.apiKey = saved; this.validateAndLoad(); }
+        },
+
+        async validateAndLoad() {
+          const data = await this.api('GET', '/v1/dashboard/stats');
+          if (data) {
+            this.authed = true;
+            this.supplierName = data.supplier.name;
+            this.supplierId = data.supplier.id;
+            this.updateStats(data);
+          } else {
+            localStorage.removeItem('supplier_api_key');
+            this.apiKey = '';
+          }
+        },
+
+        async login() {
+          this.loggingIn = true; this.loginError = '';
+          this.apiKey = this.apiKeyInput;
+          const data = await this.api('GET', '/v1/dashboard/stats');
+          if (data) {
+            localStorage.setItem('supplier_api_key', this.apiKey);
+            this.authed = true;
+            this.supplierName = data.supplier.name;
+            this.supplierId = data.supplier.id;
+            this.updateStats(data);
+          } else {
+            this.loginError = 'Invalid API key. Please check and try again.';
+            this.apiKey = '';
+          }
+          this.loggingIn = false;
+        },
+
+        logout() {
+          localStorage.removeItem('supplier_api_key');
+          this.authed = false; this.apiKey = ''; this.apiKeyInput = '';
+        },
+
+        async register() {
+          this.regError = '';
+          if (!this.regName || !this.regEmail) { this.regError = 'Name and email are required'; return; }
+          const data = await this.api('POST', '/v1/auth/register', { name: this.regName, email: this.regEmail }, true);
+          if (data?.api_key) { this.registerResult = data.api_key; }
+          else { this.regError = 'Registration failed. Email may already be in use.'; }
+        },
+
+        updateStats(data) {
+          const s = data.stats;
+          this.statsCards = [
+            { label: 'Total Products', value: s.total_products, sub: 'In your catalog', iconBg: 'bg-brand-600/20', icon: '<svg class="w-4 h-4 text-brand-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10"/></svg>' },
+            { label: 'Pending RFQs', value: s.pending_rfqs, sub: 'Awaiting your response', iconBg: 'bg-orange-500/20', icon: '<svg class="w-4 h-4 text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>' },
+            { label: 'Accepted', value: s.accepted_rfqs, sub: 'Total accepted deals', iconBg: 'bg-green-500/20', icon: '<svg class="w-4 h-4 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>' },
+            { label: 'Revenue', value: '$' + s.total_revenue.toLocaleString(), sub: 'From accepted deals', iconBg: 'bg-purple-500/20', icon: '<svg class="w-4 h-4 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>' },
+          ];
+          this.recentRFQs = data.recent_rfqs;
+          this.pendingRFQCount = s.pending_rfqs;
+        },
+
+        async loadDashboard() {
+          const data = await this.api('GET', '/v1/dashboard/stats');
+          if (data) this.updateStats(data);
+        },
+
+        async loadProducts() {
+          const params = new URLSearchParams({ page: this.productPage, per_page: this.productPerPage });
+          if (this.productSearch) params.set('q', this.productSearch);
+          const data = await this.api('GET', `/v1/catalog/products?${params}`);
+          if (data) { this.products = data; this.totalProducts = data.length >= this.productPerPage ? (this.productPage * this.productPerPage) + 1 : (this.productPage - 1) * this.productPerPage + data.length; }
+        },
+
+        openProductModal(product = null) {
+          this.editingProduct = product;
+          this.productFormError = '';
+          if (product) {
+            this.productForm = { ...product, discount_tiers_raw: product.discount_tiers ? JSON.stringify(product.discount_tiers) : '' };
+          } else {
+            this.productForm = { name:'', sku:'', category:'', list_price:'', currency:'USD', moq:1, price_floor:'', stock_available:'', lead_time_days:'', unit:'unit', description:'', discount_tiers_raw:'' };
+          }
+          this.showProductModal = true;
+        },
+
+        async saveProduct() {
+          this.productFormError = '';
+          const body = { ...this.productForm };
+          delete body.discount_tiers_raw;
+          if (!body.name || !body.sku || !body.list_price) { this.productFormError = 'Name, SKU, and list price are required'; return; }
+          body.list_price = parseFloat(body.list_price);
+          body.moq = parseInt(body.moq) || 1;
+          if (body.price_floor) body.price_floor = parseFloat(body.price_floor); else body.price_floor = null;
+          if (body.stock_available !== '') body.stock_available = parseInt(body.stock_available); else body.stock_available = null;
+          if (body.lead_time_days !== '') body.lead_time_days = parseInt(body.lead_time_days); else body.lead_time_days = null;
+          if (this.productForm.discount_tiers_raw) {
+            try { body.discount_tiers = JSON.parse(this.productForm.discount_tiers_raw); }
+            catch { this.productFormError = 'Invalid JSON in discount tiers'; return; }
+          } else { body.discount_tiers = null; }
+
+          let data;
+          if (this.editingProduct) {
+            data = await this.api('PATCH', `/v1/catalog/products/${this.editingProduct.id}`, body);
+          } else {
+            data = await this.api('POST', '/v1/catalog/products', body);
+          }
+          if (data?.id) { this.showProductModal = false; this.loadProducts(); }
+          else { this.productFormError = 'Failed to save product.'; }
+        },
+
+        async deleteProduct(id) {
+          if (!confirm('Delete this product?')) return;
+          await this.api('DELETE', `/v1/catalog/products/${id}`);
+          this.loadProducts();
+        },
+
+        async uploadCSV(event) {
+          this.uploadMsg = '';
+          const file = event.target.files[0];
+          if (!file) return;
+          const formData = new FormData();
+          formData.append('file', file);
+          try {
+            const res = await fetch(`${API}/v1/catalog/upload-csv`, { method: 'POST', headers: { Authorization: `Bearer ${this.apiKey}` }, body: formData });
+            const data = await res.json();
+            this.uploadMsg = `Imported ${data.imported} products.` + (data.errors.length ? ` ${data.errors.length} errors.` : '');
+            this.loadProducts();
+          } catch {}
+          event.target.value = '';
+        },
+
+        async loadRFQs() {
+          const params = new URLSearchParams({ page: 1, per_page: 50 });
+          if (this.rfqFilter !== 'all') params.set('status', this.rfqFilter);
+          const data = await this.api('GET', `/v1/rfq/quotes?${params}`);
+          if (data) this.rfqs = data;
+        },
+
+        async acceptRFQ(id) {
+          const data = await this.api('POST', `/v1/rfq/quotes/${id}/accept`);
+          if (data) { this.loadRFQs(); this.loadDashboard(); }
+        },
+
+        async rejectRFQ(id) {
+          const data = await this.api('POST', `/v1/rfq/quotes/${id}/reject`);
+          if (data) { this.loadRFQs(); this.loadDashboard(); }
+        },
+
+        statusClass(status) {
+          const map = {
+            quoted: 'bg-blue-950 text-blue-400',
+            pending_review: 'bg-yellow-950 text-yellow-400',
+            accepted: 'bg-green-950 text-green-400',
+            rejected: 'bg-red-950 text-red-400',
+            pending: 'bg-slate-800 text-slate-400',
+          };
+          return map[status] || 'bg-slate-800 text-slate-400';
+        },
+
+        copyToClipboard(text) {
+          navigator.clipboard.writeText(text);
+        },
+
+        async api(method, path, body = null, noAuth = false) {
+          try {
+            const opts = { method, headers: { 'Content-Type': 'application/json' } };
+            if (!noAuth) opts.headers['Authorization'] = `Bearer ${this.apiKey}`;
+            if (body) opts.body = JSON.stringify(body);
+            const res = await fetch(`${API}${path}`, opts);
+            if (res.status === 204) return true;
+            if (!res.ok) return null;
+            return await res.json();
+          } catch { return null; }
+        },
+      }
+    }
+  </script>
+</body>
+</html>
