@@ -1,25 +1,24 @@
-from contextlib import asynccontextmanager
+import asyncio
+import logging
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from app.db.database import init_db
 from app.routers import auth, catalog, rfq, agent, dashboard
 
-
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    await init_db()
-    yield
-
+logger = logging.getLogger(__name__)
 
 app = FastAPI(
     title="Supplier Readiness API",
     description="Makes B2B suppliers queryable and transactable by AI procurement agents.",
     version="1.0.0",
-    lifespan=lifespan,
     docs_url="/api/docs",
     redoc_url="/api/redoc",
 )
+
+logger.info("Initializing database...")
+asyncio.run(init_db())
+logger.info("Database initialization complete.")
 
 app.add_middleware(
     CORSMiddleware,
