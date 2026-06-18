@@ -1,3 +1,4 @@
+import logging
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -5,11 +6,21 @@ from fastapi.staticfiles import StaticFiles
 from app.db.database import init_db
 from app.routers import auth, catalog, rfq, agent, dashboard
 
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    await init_db()
+    logger.info("Application startup: beginning initialization...")
+    try:
+        await init_db()
+        logger.info("Application startup: initialization complete, ready to serve requests.")
+    except Exception:
+        logger.exception("Application startup: initialization failed — app may not function correctly.")
+        raise
     yield
+    logger.info("Application shutdown.")
 
 
 app = FastAPI(
@@ -39,6 +50,11 @@ app.include_router(dashboard.router, prefix="/v1")
 @app.get("/health")
 async def health():
     return {"status": "ok"}
+
+
+@app.get("/")
+async def root():
+    return {"status": "ok", "message": "Supplier Readiness API is running"}
 
 
 app.mount("/", StaticFiles(directory="static", html=True), name="static")
